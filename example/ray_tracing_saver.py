@@ -1,6 +1,7 @@
 # ADJUST ME
 mode = ["test", "train", "validation"]
 reflexion_traces = [360]  # 36
+REFLEXION_ORDER = 3
 
 ground_path = "./rays"
 
@@ -12,6 +13,9 @@ ground_path = "./rays"
 import os
 import shutil
 from tqdm import tqdm
+
+from joblib import Parallel, delayed
+
 import img_phy_sim as ips
 
 
@@ -286,50 +290,72 @@ def save_dataset(output_real_path, output_osm_path,
 
 
 
+def process_single_sample(input_, idx, reflexion_steps, reflexion_order, path):
+    idx = int(idx.cpu().numpy().reshape(-1)[0])
+    input_ = input_.detach().cpu().numpy()
+
+    # remove batch channel
+    input_ = np.squeeze(input_, axis=0)
+
+    if len(input_.shape) == 3:
+        input_ = np.squeeze(input_, axis=0)
+
+    input_ = np.transpose(input_, (1, 0))
+    
+    # calc ray tracing
+    rays = ips.ray_tracing.trace_beams(rel_position=[0.5, 0.5], 
+                                        img_src=input_, 
+                                        directions_in_degree=ips.math.get_linear_degree_range(step_size=reflexion_steps),
+                                        wall_values=None, 
+                                        wall_thickness=0,
+                                        img_border_also_collide=False,
+                                        reflexion_order=reflexion_order,
+                                        should_scale_rays=True,
+                                        should_scale_img=True)
+
+    # save ray tracing
+    save_path = os.path.join(path, f"rays_[{idx}].txt")
+    ips.ray_tracing.save(path=save_path, rays=rays)
 
 
 
-for cur_mode in mode:
-    for cur_reflexion_traces in reflexion_traces:
+def process_mode_reflexion_combination(cur_mode, cur_reflexion_traces, reflexion_order, ground_path):
+    dataset = PhysGenDataset(mode=cur_mode, 
+                             variation="sound_reflection", 
+                             input_type="osm", 
+                             output_type="standart")
+    loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0)
 
-        dataset = PhysGenDataset(mode=cur_mode, variation="sound_reflection", input_type="osm", output_type="standart")
-        loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=1)
+    reflexion_steps = 360/cur_reflexion_traces
 
-        reflexion_steps = 360/cur_reflexion_traces
+    path = os.path.join(ground_path, cur_mode, str(cur_reflexion_traces))  # "rays.txt"
 
-        path = os.path.join(ground_path, cur_mode, str(cur_reflexion_traces))  # "rays.txt"
-
-        os.makedirs(path, exist_ok=True)
+    if os.path.exists(path):
         shutil.rmtree(path)
-        os.makedirs(path, exist_ok=True)
+    os.makedirs(path, exist_ok=True)
 
-        for input_, _, idx in tqdm(loader):
-            idx = idx.item()
-            input_ = input_.detach().cpu().numpy()
+    batch_list = list(loader)
 
-            # remove batch channel
-            input_ = np.squeeze(input_, axis=0)
+    Parallel(n_jobs=-1)(
+        delayed(process_single_sample)(input_, idx_, reflexion_steps, reflexion_order, path)
+        for (input_, _, idx_) in batch_list
+    )
 
-            if len(input_.shape) == 3:
-                input_ = np.squeeze(input_, axis=0)
-
-            input_ = np.transpose(input_, (1, 0))
-            
-            # calc ray tracing
-            rays = ips.ray_tracing.trace_beams(rel_position=[0.5, 0.5], 
-                                                img_src=input_, 
-                                                directions_in_degree=ips.math.get_linear_degree_range(step_size=reflexion_steps),
-                                                wall_values=None, 
-                                                wall_thickness=1,
-                                                img_border_also_collide=False,
-                                                reflexion_order=3,
-                                                should_scale_rays=True,
-                                                should_scale_img=True)
-
-            # save ray tracing
-            save_path = os.path.join(path, f"rays_[{idx}].txt")
-            ips.ray_tracing.save(path=save_path, rays=rays)
+    return f"Finished Mode:{cur_mode}, Reflexions:{cur_reflexion_traces}"
 
 
+
+def parallel_ray_tracing_computation(mode, reflexion_traces, reflexion_order, ground_path):
+    Parallel(n_jobs=-1)(
+        delayed(process_mode_reflexion_combination)(cur_mode, cur_reflexion_traces, reflexion_order, ground_path)
+        for cur_mode in mode
+        for cur_reflexion_traces in reflexion_traces
+    )
+
+
+
+if __name__ == "__main__":
+    print("Starting ray tracing computation...")
+    parallel_ray_tracing_computation(mode, reflexion_traces, REFLEXION_ORDER, ground_path)
 
 
