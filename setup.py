@@ -3,11 +3,11 @@ from setuptools import setup, find_packages
 # relative links to absolute
 with open("./README.md", "r") as f:
     readme = f.read()
-readme = readme.replace('src="./img_phy_sim/raytracing_example.png"', 'src="https://github.com/xXAI-botXx/Image-Physics-Simulation/raw/main/img_phy_sim/raytracing_example.png"')
+readme = readme.replace('src="./img_phy_sim/raytracing_example.png"', 'src="https://github.com/M-106/Image-Physics-Simulation/raw/main/img_phy_sim/raytracing_example.png"')
 
 setup(
     name='img-phy-sim',
-    version='0.3',
+    version='0.4',
     packages=find_packages(),  # ['img_phy_sim'],
     install_requires=[
         # List any dependencies here, e.g. 'numpy', 'requests'
@@ -21,11 +21,11 @@ setup(
     long_description = readme,
     long_description_content_type="text/markdown",
     include_package_data=True,  # Ensures files from MANIFEST.in are included
-    download_url = 'https://github.com/xXAI-botXx/Image-Physics-Simulation/archive/v_03.tar.gz',
-    url="https://github.com/xXAI-botXx/Image-Physics-Simulation",
+    download_url = 'https://github.com/M-106/Image-Physics-Simulation/archive/v_03.tar.gz',
+    url="https://github.com/M-106/Image-Physics-Simulation",
     project_urls={
-        "Documentation": "https://xxai-botxx.github.io/Image-Physics-Simulation/img_phy_sim",
-        "Source": "https://github.com/xXAI-botXx/Image-Physics-Simulation"
+        "Documentation": "https://M-106.github.io/Image-Physics-Simulation/img_phy_sim",
+        "Source": "https://github.com/M-106/Image-Physics-Simulation"
     },
     keywords = ['Simulation', 'Computer-Vision', 'Physgen'],
     classifiers=[

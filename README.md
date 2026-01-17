@@ -11,7 +11,7 @@ Contents:
 - [Raytracing Tutorial](#raytracing-tutorial)
 - [Performance Test](#performance-test)
 
-[> Documentation <](https://xxai-botxx.github.io/Image-Physics-Simulation/img_phy_sim.html)
+[> Documentation <](https://M-106.github.io/Image-Physics-Simulation/img_phy_sim.html)
 
 <img src="./img_phy_sim/raytracing_example.png"></img>
 
