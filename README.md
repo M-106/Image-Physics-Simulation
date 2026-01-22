@@ -10,10 +10,14 @@ Contents:
 - [Raytracing Computation](#raytracing-computation)
 - [Raytracing Tutorial](#raytracing-tutorial)
 - [Performance Test](#performance-test)
+- [Ray-Tracing Formats](#ray-tracing-formats)
 
 [> Documentation <](https://M-106.github.io/Image-Physics-Simulation/img_phy_sim.html)
 
-<img src="./img_phy_sim/raytracing_example.png"></img>
+<img src="./img_phy_sim/raytracing_example.png" width="46%"></img>
+<img src="./img_phy_sim/ism_example.png" width="46%"></img>
+
+> Ray-Beams and ISM
 
 <br><br>
 
@@ -24,18 +28,27 @@ This repo only need some basic libraries:
 - `matplotlib` 
 - `opencv-python`
 - `scikit-image`
+- `joblib`
+
+If you want to use the `data` module then this package needs also:
+- `torch`
+- `torchvision`
+- `datasets`
+- `prime_printer`
 
 You can download / clone this repo and run the example notebook via following Python/Anaconda setup:
 ```bash
 conda create -n img-phy-sim python=3.13 pip -y
 conda activate img-phy-sim
-pip install numpy matplotlib opencv-python ipython jupyter shapely prime_printer datasets==3.6.0 scikit-image
+pip install numpy matplotlib opencv-python ipython jupyter shapely prime_printer datasets==3.6.0 scikit-image joblib shapely
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
 ```
 
 You can also use this repo via [Python Package Index (PyPI)](https://pypi.org/) as a package: 
 ```bash
 pip install img-phy-sim
+# or for using `data` module:
+pip install img-phy-sim[full]
 ```
 
 Here the instructions to use the package version of `ips` and an anconda setup:
@@ -43,11 +56,13 @@ Here the instructions to use the package version of `ips` and an anconda setup:
 conda create -n img-phy-sim python=3.13 pip -y
 conda activate img-phy-sim
 pip install img-phy-sim
+# or for using `data` module:
+pip install img-phy-sim[full]
 ```
 
-To run the example code you still need:
+To run the example code you also need (this is included in `img-phy-sim[full]`):
 ```bash
-pip install prime_printer shapely datasets==3.6.0
+pip install prime_printer datasets==3.6.0
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
 ```
 
@@ -162,6 +177,23 @@ class PhysGenDataset(Dataset):
         - `open`: load your saved rays txt file
         - `get_linear_degree_range`: get a range for your beam-directions -> example beams between 0-360 with stepsize 10
         - `merge_rays`: merge 2 rays to one 'object'
+    - `ism`
+        - `reflect_point_across_infinite_line`: Reflects a point across the infinite line defined by two endpoints.
+        - `paths_to_rays`: Converts polyline paths into your ray/segment representation, optionally normalizing points to ([0,1]) image space.
+        - `reflection_map_to_img`: Normalizes a float reflection/energy map to a uint8 visualization image in ([0,255]).
+        - `Segment`: Immutable dataclass representing a 2D line segment with convenience access to its endpoints.
+        - `_seg_seg_intersection`: Computes the unique intersection point of two finite 2D segments, returning None for parallel/colinear/no-hit cases.
+        - `_bresenham_points`: Generates all integer grid points along a line between two pixels using Bresenham’s algorithm.
+        - `is_visible_raster`: Tests line-of-sight between two points by checking whether Bresenham-sampled pixels hit an occlusion raster.
+        - `build_wall_mask`: Builds a binary 0/255 wall mask from an input image using explicit wall labels or mask-like heuristics.
+        - `get_wall_segments_from_mask`: Extracts wall boundary contours from a binary mask and converts them into geometric Segment primitives.
+        - `build_occlusion_from_wallmask`: Produces a binary occlusion raster (optionally dilated) used for fast visibility checks.
+        - `enumerate_wall_sequences_indices`: Enumerates all reflection sequences (as wall-index tuples) up to a maximum reflection order.
+        - `precompute_image_sources`: Computes image-source positions for each reflection sequence by iteratively mirroring the source across the corresponding walls.
+        - `build_path_for_sequence`: Reconstructs the specular reflection polyline for a given wall sequence by backtracking virtual receivers and segment intersections.
+        - `path_energy`: Computes a simple physically-inspired path contribution based on total path length and per-reflection losses.
+        - `check_path_visibility_raster`: Verifies that every segment of a candidate path is unobstructed using raster line-of-sight tests.
+        - `compute_reflection_map`: Evaluates all valid ISM paths from one source to a receiver grid and accumulates either path counts or energy (optionally dB).
     - `img`
         - `open`: load an image via Open-CV
         - `save`: save an image
@@ -342,7 +374,17 @@ I hope this little tutorial could be helpful. Good luck with your project <3
 
 <br>
 
-[> See the notebook/code <](./example/physgen_performance.ipynb)
+[> See the notebook/code <](./example/physgen_performance.ipynb) [(or parallel notebook)](./example/physgen_parallel_performance.ipynb)
+
+<br><br>
+
+Comparison no parallel vs parallel computing:
+- Parallel Mean Experiment time: 3.48 seconds (mean first experiment: 8.85 seconds)
+- Standard  Mean Experiment time: 4.53 seconds (mean first experiment: 16.00 seconds)
+
+<br><br>
+
+Parameter Experiments:
 
 Executed with 50 random images.
 
@@ -462,6 +504,123 @@ The Stepsize/amount of rays have the biggest impact on the performance. The othe
 | **3. Reflection Order** | 6 | 0.93 ± 0.74 s | 0.90 ± 0.72 s | 0.029 ± 0.016 s | **227.71 %** | Increasing (+0.37 s/exp) | Performance changes **significantly** |
 | **4. Detail Draw** | 2 | 0.63 ± 0.05 s | 0.56 ± 0.00 s | 0.071 ± 0.050 s | **16.39 %**  | Increasing (+0.10 s/exp)  | Performance changes **slightly** |
 
+<!--
+<br><br>
+
+### Optimization
+
+<br>
+
+Speed comparison between `standard`, `with joblib` and `joblib + CPython`.
+
+FIXME -> table
+
+
+<br>
+
+Cython is Pyhon code which is closer to C. Instead of compiling to Python-Bytecode (`.pyc`), your code will be compiled as C-Extension (`.so`/`.pyd`). 
+
+There are 3 layers of Cython optimization:
+1. Writing in `.pyx` files not `.py` files -> you can just rename your file<br>
+    - +5% to +30% speedup
+2. Set `cdef` for local variables + helper-functions + `cpdef` for API-functions -> add types<br>
+    Example:
+    ```python
+    cdef double x0, y0, dx, dy
+    cdef int cell_x, cell_y, steps
+    ```
+    - +5x to +50x speedup
+3. Add types everywhere, especially in numpy arrays. <br>
+    Example:
+    ```python
+    cimport numpy as cnp
+
+    def trace(..., cnp.ndarray[double, ndim=2] img):
+        cdef double value = img[y, x]
+    ```
+    - +20× to +500×  
+
+
+
+| **Optimization Layer** | **Effort** | **Speedup** | **What It Does** |
+|---|---|---|---|
+| **1. `.py` → `.pyx`** | minimal | **+5–30%** | Reduces Python interpreter overhead and applies basic Cython optimizations |
+| **2. `cdef` variables & `cpdef` functions** | medium | **+5×–50×** | Moves loops and math into pure C, eliminating Python object overhead |
+| **3. `cimport numpy` + typed NumPy arrays** | high | **+20×–500×** | Enables direct C‑level memory access with zero Python indexing overhead |
+
+
+
+> Use `pip install cypthon` to install it.
+
+In `setup.py` you need following changes:
+```python
+from setuptools import setup, find_packages, Extension
+from Cython.Build import cythonize
+
+...
+
+ext_1 = Extension(
+    name="img_phy_sim.ray_tracing",
+    sources=["img_phy_sim/ray_tracing.pyx"],
+    include_dirs=[],
+    extra_compile_args=["-O3"],
+)
+
+ext_2 = Extension(
+    name="img_phy_sim.math",
+    sources=["img_phy_sim/math.pyx"],
+    include_dirs=[],
+    extra_compile_args=["-O3"],
+)
+
+setup(
+    ext_modules=cythonize(
+        [ext_1, ext_2],
+        compiler_directives={
+            "language_level": "3",
+            "boundscheck": False,
+            "wraparound": False,
+            "initializedcheck": False,
+            "nonecheck": False,
+            "cdivision": True,
+        },
+        annotate=True,
+    ),
+    ...
+)
+```
+
+-->
+
+<br><br>
+
+### Ray-Tracing Formats
+
+<br>
+
+
+**Your current approach (DDA / Pixel Ray Marching)**
+* **Forward integration**: Ray is propagated step by step through a **discrete grid** (pixel/grid).
+* **Collision model**: A "hit" occurs when the ray enters a **wall cell** (quantization).
+* **Reflection**: Occurs **locally at the collision pixel** with a (often quantized) normal/orientation.
+* Result: good for "many rays" / field of view, but **not deterministic with regard to reflection paths** (you need directions/sampling).
+
+**Noise modeling style (image source method / geometric acoustics)**
+* **Path construction**: Reflection paths are constructed **deterministically** via **mirror sources** (virtual sources).
+* **Continuous geometry**: works in $\mathbb{R}^2 / \mathbb{R}^3$ with lines/segments/polygons ("infinity-based" in the sense of *continuous space*, not raster).
+* **Validation**: Path is then accepted/rejected via **visibility/occlusion checks**.
+* Result: Delivers **all specular paths up to order N** without angle sampling.
+
+Short form:
+
+* **Pixel-based + stochastic/directed** (original approach here) vs. **continuous + deterministically constructed** (noise modelling).
+
+
+<br>
+
+How to use which of them in `img-phy-sim`:
+
+FIXME
 
 
 

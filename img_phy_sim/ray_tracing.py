@@ -68,8 +68,8 @@ Functions:
 # ---------------
 # >>> Imports <<<
 # ---------------
-from img_phy_sim.img import open as img_open, get_width_height
-from img_phy_sim.math import degree_to_vector, vector_to_degree, normalize_point
+from .img import open as img_open, get_width_height
+from .math import degree_to_vector, vector_to_degree, normalize_point
 
 import builtins
 import pickle
@@ -78,7 +78,8 @@ import copy
 
 import numpy as np
 import cv2
-# from shapely.geometry import LineString, Point
+
+from joblib import Parallel, delayed
 
 
 
@@ -100,7 +101,7 @@ class RayIterator:
             of the other iterator's rays_collection. If None, creates an empty iterator.
             
         Returns:
-        None
+        - None
         """
         if other_ray_iterator is None:
             self.rays_collection = []
@@ -589,34 +590,6 @@ def merge(rays_1, rays_2, *other_rays_):
 # ----------------------
 # >>> Core Functions <<<
 # ----------------------
-# def get_walls(img):
-#     """
-#     Detect walls (edges) in an image and convert them into line segments.
-
-#     The function uses the Canny edge detector to find edges, then extracts contours
-#     and converts each contour into a list of line segments represented as (x1, y1, x2, y2).
-
-#     Parameters:
-#         img (numpy.ndarray): Input image as a grayscale or binary image. 
-#                              Values should be in range [0, 1] or [0, 255].
-
-#     Returns:
-#         list: List of wall segments, each represented as [x1, y1, x2, y2].
-#     """
-#     # detect edges and contours
-#     edges = cv2.Canny((img*255).astype(np.uint8), 100, 200)
-#     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-#     # convert contours to line segments
-#     walls = []
-#     for c in contours:
-#         for i in range(len(c)-1):
-#             x1, y1 = c[i][0]
-#             x2, y2 = c[i+1][0]
-#             walls += [[x1, y1, x2, y2]]
-#     return walls
-
-
 
 def get_all_pixel_coordinates_in_between(x1, y1, x2, y2):
     """
@@ -1264,7 +1237,8 @@ def trace_beams(rel_position,
                 should_scale_img=True,
                 use_dda=True,
                 iterative_tracking=False,
-                iterative_steps=None):
+                iterative_steps=None,
+                parallelization=0):
     """
     Trace multiple rays (beams) from a single position through an image with walls and reflections.
 
@@ -1303,7 +1277,7 @@ def trace_beams(rel_position,
         Nested list of traced beams and their reflection segments. 
         Format: rays[beam][segment][point] = (x, y)
     """ 
-    if type(img_src) == np.ndarray:
+    if isinstance(img_src, np.ndarray):
         img = img_src
     else:
         img = img_open(src=img_src, should_scale=should_scale_img, should_print=False)
@@ -1319,32 +1293,56 @@ def trace_beams(rel_position,
     if wall_values is None:
         wall_values = [0.0]
 
-    if iterative_tracking:
-        rays = RayIterator()
-    else:
-        rays = []
+    # create function plan
+    ray_planning = []
     for direction_in_degree in directions_in_degree:
         if use_dda:
             ray_tracing_func = trace_beam_with_DDA
         else:
             ray_tracing_func = trace_beam
 
-        cur_ray_result = ray_tracing_func(
-                            abs_position=abs_position, 
-                            img=img,  
-                            direction_in_degree=direction_in_degree,
-                            wall_map=wall_map,
-                            wall_values=wall_values,
-                            img_border_also_collide=img_border_also_collide, 
-                            reflexion_order=reflexion_order,
-                            should_scale=should_scale_rays,
-                            should_return_iterative=iterative_tracking
-                        )
+        ray_planning += [lambda dir=direction_in_degree: ray_tracing_func(
+                                        abs_position=abs_position, 
+                                        img=img,  
+                                        direction_in_degree=dir,
+                                        wall_map=wall_map,
+                                        wall_values=wall_values,
+                                        img_border_also_collide=img_border_also_collide, 
+                                        reflexion_order=reflexion_order,
+                                        should_scale=should_scale_rays,
+                                        should_return_iterative=iterative_tracking
+                                    )
+                        ]
         
-        if iterative_tracking:
-            rays.add_rays(cur_ray_result)
-        else:
-            rays += [cur_ray_result]
+    if iterative_tracking:
+        rays = RayIterator()
+    else:
+        rays = []
+
+    # compute
+    if parallelization == 0:
+        
+        
+        for cur_ray_planning in ray_planning:
+            cur_ray_result = cur_ray_planning()
+        
+            if iterative_tracking:
+                rays.add_rays(cur_ray_result)
+            else:
+                rays += [cur_ray_result]
+    else:
+        result_rays = Parallel(n_jobs=parallelization, 
+                                backend="loky",     # process-based
+                                prefer="processes",
+                                batch_size=1        # because of unequal ray lengths
+                                )(
+                                    delayed(ray_func)() for ray_func in ray_planning
+                                )
+        for cur_ray_result in result_rays:
+            if iterative_tracking:
+                rays.add_rays(cur_ray_result)
+            else:
+                rays += [cur_ray_result] 
 
     if iterative_tracking and iterative_steps is not None:
         rays.reduce_rays_iteratively(steps=iterative_steps)

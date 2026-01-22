@@ -94,6 +94,7 @@ Tobia Ippolito, 2025
 
 from . import img
 from . import ray_tracing
+from . import ism
 from . import math
 from . import eval
 from . import data

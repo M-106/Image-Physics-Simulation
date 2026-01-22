@@ -1,21 +1,62 @@
-from setuptools import setup, find_packages
+# build: python setup.py build_ext --inplace
+
+from setuptools import setup, find_packages# , Extension
+# from Cython.Build import cythonize
 
 # relative links to absolute
 with open("./README.md", "r") as f:
     readme = f.read()
 readme = readme.replace('src="./img_phy_sim/raytracing_example.png"', 'src="https://github.com/M-106/Image-Physics-Simulation/raw/main/img_phy_sim/raytracing_example.png"')
 
+# ext_1 = Extension(
+#     name="img_phy_sim.ray_tracing",
+#     sources=["img_phy_sim/ray_tracing.pyx"],
+#     include_dirs=[],
+#     extra_compile_args=["-O3"],
+# )
+
+# ext_2 = Extension(
+#     name="img_phy_sim.math",
+#     sources=["img_phy_sim/math.pyx"],
+#     include_dirs=[],
+#     extra_compile_args=["-O3"],
+# )
+
 setup(
+    # ext_modules=cythonize(
+    #     [ext_1, ext_2],
+    #     compiler_directives={
+    #         "language_level": "3",
+    #         "boundscheck": False,
+    #         "wraparound": False,
+    #         "initializedcheck": False,
+    #         "nonecheck": False,
+    #         "cdivision": True,
+    #     },
+    #     annotate=True,
+    # ),
     name='img-phy-sim',
-    version='0.4',
+    version='0.5',
     packages=find_packages(),  # ['img_phy_sim'],
     install_requires=[
         # List any dependencies here, e.g. 'numpy', 'requests'
         "numpy",
         "opencv-python",
         "matplotlib",
-        "scikit-image"
+        "scikit-image",
+        "joblib",
+        "shapely"
+        # "cypthon"
     ],
+    extras_require={
+        # full version (including PhysGen/data module)
+        "full": [
+            "torch",
+            "torchvision",
+            "datasets==3.6.0",
+            "prime_printer"
+        ]
+    },
     author="Tobia Ippolito",
     description = 'Physical Simulations on Images.',
     long_description = readme,

@@ -147,7 +147,7 @@ def open(src, should_scale=False, should_print=True):
             - Bit depth: 8-bit
             - Dtype: float64
     """
-    img = cv2.imread(src, cv2.IMREAD_GRAYSCALE)
+    img = cv2.imread(src, cv2.IMREAD_GRAYSCALE)  # or: cv2.IMREAD_UNCHANGED ?
     height, width = img.shape[:2]
 
     if should_scale:
