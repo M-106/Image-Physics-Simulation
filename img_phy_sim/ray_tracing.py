@@ -62,6 +62,12 @@ Functions:
 - draw_line_or_point(...) - Draw a single point or a line segment.
 - draw_rays(...)    - Visualize traced rays as images or channels.
 """
+
+
+
+# ---------------
+# >>> Imports <<<
+# ---------------
 from img_phy_sim.img import open as img_open, get_width_height
 from img_phy_sim.math import degree_to_vector, vector_to_degree, normalize_point
 
@@ -73,6 +79,7 @@ import copy
 import numpy as np
 import cv2
 # from shapely.geometry import LineString, Point
+
 
 
 # --------------

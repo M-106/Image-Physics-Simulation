@@ -38,6 +38,19 @@ Submodules:
     - plot_image_with_values / show_image_with_line_and_profile
     - get_width_height / get_bit_depth
 
+- `eval`<br>
+    Accuracy measurement utilities.<br>
+    Key functionalities:
+    - calc_metrices
+
+- `data`<br>
+    Loading utilities for PhysGen Dataset.<br>
+    Key functionalities:
+    - PhysGenDataset()
+    - get_dataloader
+    - save_dataset
+
+    
 Typical workflow:
 1. Prepare an environment image using `img.open()` or generate it programmatically.
 2. Trace beams using `ray_tracing.trace_beams()` with specified start positions,
@@ -82,5 +95,7 @@ Tobia Ippolito, 2025
 from . import img
 from . import ray_tracing
 from . import math
+from . import eval
+from . import data
 # from . import data
 

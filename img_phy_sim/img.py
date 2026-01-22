@@ -42,7 +42,7 @@ line_values = show_image_with_line_and_profile([img], axis="row", index=50)
 ```
 
 Author:<br>
-Tobia Ippolito, 2025
+Tobia Ippolito
 
 Functions:
 - get_bit_depth(img)                   - Return bit depth of image dtype.
@@ -57,11 +57,18 @@ Functions:
 - show_image_with_line_and_profile(imgs, axis='row', ...) - Highlight a row/column and plot pixel values.
 """
 
+
+
+# ---------------
+# >>> Imports <<<
+# ---------------
 import os
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 from skimage.measure import block_reduce  # pip install scikit-image
+
+
 
 # -------------------------
 # >>> Basic Image tools <<<

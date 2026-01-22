@@ -1,11 +1,103 @@
 """
-PhysGen Dataset
+**PhysGen Dataset Loader and Export Utilities**
 
-See:
+This module provides a PyTorch-compatible interface for loading, processing,
+visualizing, and exporting samples from the PhysGen dataset, a large-scale
+physics-based sound propagation dataset. It is designed for machine learning
+workflows that operate on image-like representations of physical simulations,
+such as sound maps derived from urban environments.
+
+The module wraps the official PhysGen Hugging Face dataset and exposes flexible
+options for selecting dataset variations, input/output modalities, and training
+splits. In addition, it includes utilities for resizing tensors, retrieving
+individual samples, constructing PyTorch DataLoaders, and exporting datasets
+to disk as image files.
+
+The core idea is to make PhysGen easy to integrate into deep learning pipelines
+while supporting common preprocessing steps such as resizing, modality switching,
+and derived target generation (e.g. complex-only outputs).
+
+Main features:
+- PyTorch `Dataset` implementation for the PhysGen dataset
+- Support for multiple PhysGen variations (baseline, reflection, diffraction, combined)
+- Configurable input types (OSM or base simulation)
+- Configurable output types (standard sound maps or complex-only targets)
+- Automatic image-to-tensor conversion and normalization
+- Utilities for resizing tensors to model-friendly dimensions
+- Easy access to single samples as NumPy arrays for debugging and visualization
+- Dataset export functionality for saving inputs and targets as PNG images
+- Command-line interface for batch dataset extraction
+
+Typical workflow:
+1. Initialize the dataset via `PhysGenDataset(...)`.
+2. Wrap it in a PyTorch `DataLoader` using `get_dataloader()`.
+3. Retrieve individual samples for inspection using `get_image()`.
+4. Train or evaluate a model using the provided tensors.
+5. Optionally export the dataset to disk using `save_dataset()`.
+
+Dependencies:
+- torch
+- torchvision
+- numpy
+- cv2 (OpenCV)
+- PIL
+- datasets (Hugging Face)
+- prime_printer (for progress visualization)
+
+PhysGen references:
+- Dataset: https://huggingface.co/datasets/mspitzna/physicsgen
+- Paper: https://arxiv.org/abs/2503.05333
+- GitHub: https://github.com/physicsgen/physicsgen
+
+Example:
+```python
+from img_phy_sim.data import PhysGenDataset, get_dataloader
+
+dataset = PhysGenDataset(
+    variation="sound_reflection",
+    mode="train",
+    input_type="osm",
+    output_type="complex_only"
+)
+
+loader = get_dataloader(
+    mode="train",
+    variation="sound_reflection",
+    input_type="osm",
+    output_type="complex_only"
+)
+
+input_img, target_img, idx = dataset[0]
+```
+
+Author:<br>
+Tobia Ippolito
+
+Classes:
+- PhysGenDataset(Dataset)<br>
+    PyTorch dataset wrapper for PhysGen with flexible input/output configuration.
+
+Functions:
+- resize_tensor_to_divisible_by_14(tensor)<br>
+    Resize tensors so height and width are divisible by 14.
+- get_dataloader(...)<br>
+    Create a PyTorch DataLoader for the PhysGen dataset.
+- get_image(...)<br>
+    Retrieve a single dataset sample (optionally as NumPy arrays).
+- save_dataset(...)<br>
+    Export PhysGen inputs and targets as PNG images to disk.
+
+Also see:
 - https://huggingface.co/datasets/mspitzna/physicsgen
 - https://arxiv.org/abs/2503.05333
 - https://github.com/physicsgen/physicsgen
 """
+
+
+
+# ---------------
+# >>> Imports <<<
+# ---------------
 import os
 import shutil
 from PIL import Image
@@ -23,6 +115,11 @@ from torchvision import transforms
 
 import prime_printer as prime
 
+
+
+# --------------
+# >>> Helper <<<
+# --------------
 def resize_tensor_to_divisible_by_14(tensor: torch.Tensor) -> torch.Tensor:
     """
     Resize a tensor to the next smaller (H, W) divisible by 14.
@@ -49,6 +146,10 @@ def resize_tensor_to_divisible_by_14(tensor: torch.Tensor) -> torch.Tensor:
         raise ValueError("Tensor must be 3D (C, H, W) or 4D (B, C, H, W)")
 
 
+
+# ------------------
+# >>> Main Class <<<
+# ------------------
 class PhysGenDataset(Dataset):
 
     def __init__(self, variation="sound_baseline", mode="train", input_type="osm", output_type="standard"):
@@ -123,6 +224,9 @@ class PhysGenDataset(Dataset):
 
 
 
+# ----------------------
+# >>> Loading Helper <<<
+# ----------------------
 def get_dataloader(mode='train', variation="sound_reflection", input_type="osm", output_type="complex_only", shuffle=True):
     dataset = PhysGenDataset(mode=mode, variation=variation, input_type=input_type, output_type=output_type)
     return DataLoader(dataset, batch_size=1, shuffle=shuffle, num_workers=1)
@@ -268,6 +372,10 @@ def save_dataset(output_real_path, output_osm_path,
     print(f"\nSuccessfull saved {data_len} datapoints into {os.path.abspath(output_real_path)} & {os.path.abspath(output_osm_path)}")
 
 
+
+# -----------------------
+# >>> Make it runable <<<
+# -----------------------
 if __name__ == "__main__":
     import argparse
 

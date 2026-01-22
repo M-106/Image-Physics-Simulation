@@ -55,20 +55,20 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 
 ### Download Example Data
 
-You can download Physgen data if wanted via the `physgen_dataset.py` using following commands:
+You can download Physgen data if wanted via the `data.py` using following commands:
 
 ```bash
 conda activate img-phy-sim
-cd "D:\Informatik\Projekte\Image-Physics-Simulation" && D:
-python physgen_dataset.py --output_real_path ./datasets/physgen_train_raw/real --output_osm_path ./datasets/physgen_train_raw/osm --variation sound_reflection --input_type osm --output_type standard --data_mode train
+cd "D:\Informatik\Projekte\Image-Physics-Simulation\img_phy_sim" && D:
+python data.py --output_real_path ./datasets/physgen_train_raw/real --output_osm_path ./datasets/physgen_train_raw/osm --variation sound_reflection --input_type osm --output_type standard --data_mode train
 ```
 
 ```bash
-python physgen_dataset.py --output_real_path ./datasets/physgen_test_raw/real --output_osm_path ./datasets/physgen_test_raw/osm --variation sound_reflection --input_type osm --output_type standard --data_mode test
+python data.py --output_real_path ./datasets/physgen_test_raw/real --output_osm_path ./datasets/physgen_test_raw/osm --variation sound_reflection --input_type osm --output_type standard --data_mode test
 ```
 
 ```bash
-python physgen_dataset.py --output_real_path ./datasets/physgen_val_raw/real --output_osm_path ./datasets/physgen_val_raw/osm --variation sound_reflection --input_type osm --output_type standard --data_mode validation
+python data.py --output_real_path ./datasets/physgen_val_raw/real --output_osm_path ./datasets/physgen_val_raw/osm --variation sound_reflection --input_type osm --output_type standard --data_mode validation
 ```
 
 <br><br>
@@ -169,6 +169,21 @@ class PhysGenDataset(Dataset):
         - `advanced_imshow`: show multiple images with many options
         - `show_image_with_line_and_profile`: show an image with a red line + the values of the image on this line
         - `plot_image_with_values`: plot an image with it's value plotted and averaged to see your image in values
+    - `math`
+        - `get_linear_degree_range`: generate evenly spaced degrees within a range
+        - `degree_to_vector`: convert a degree angle to a 2D unit vector
+        - `vector_to_degree`: convert a 2D vector into its corresponding degree
+        - `normalize_point`: Normalize a 2D point to [0, 1] range
+        - `denormalize_point`: Denormalize a 2D point to pixel coordinates
+        - `numpy_info`: Get statistics about an numpy array
+    - `eval`
+        - `calc_metrices`: calculate F1, Recall and Precision between rays (or optinal an image) and an image
+    - `data`
+        - `PhysGenDataset()`: PyTorch dataset wrapper for PhysGen with flexible input/output configuration
+        - `resize_tensor_to_divisible_by_14`: resize tensors so height and width are divisible by 14
+        - `get_dataloader`: create a PyTorch DataLoader for the PhysGen dataset
+        - `get_image`: retrieve a single dataset sample (optionally as NumPy arrays)
+        - `save_dataset`: export PhysGen inputs and targets as PNG images to disk
 
 
 That are not all functions but the ones which should be most useful. Check out the documentation for all functions.
