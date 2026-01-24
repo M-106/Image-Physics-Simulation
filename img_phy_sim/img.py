@@ -126,7 +126,7 @@ def get_width_height(img, channels_before=0):
 
 
 
-def open(src, should_scale=False, should_print=True):
+def open(src, should_scale=False, auto_scale_method=True, should_print=True, unchanged=True):
     """
     Load a grayscale image from a file path.
 
@@ -134,6 +134,8 @@ def open(src, should_scale=False, should_print=True):
         src (str): Path to the image file.
         should_scale (bool, optional): If True, scale pixel values to [0, 1]
                                        according to bit depth (default: False).
+        auto_scale_method (bool, optionl): If True, the scaling will auto decide to up or down scale 
+                                            if should_sclae is also True else always down scale (default: True).
         should_print (bool, optional): If True, print image info to console
                                        (default: True).
 
@@ -147,20 +149,29 @@ def open(src, should_scale=False, should_print=True):
             - Bit depth: 8-bit
             - Dtype: float64
     """
-    img = cv2.imread(src, cv2.IMREAD_GRAYSCALE)  # or: cv2.IMREAD_UNCHANGED ?
+    img = cv2.imread(src,  cv2.IMREAD_UNCHANGED if unchanged else cv2.IMREAD_GRAYSCALE)
     height, width = img.shape[:2]
 
     if should_scale:
-        img = img / ((2**get_bit_depth(img)) -1)
+        img_max = ((2**get_bit_depth(img)) -1)
+        if auto_scale_method:
+            if img.max() < img_max*0.2:  # or just img.max() <= 1.1
+                img = img * img_max
+            else:
+                img = img / img_max
+        else:
+            img = img / img_max
 
     if should_print:
-        print(f"Loaded Image:\n    - Image size: {width}x{height}\n    - Bit depth: {get_bit_depth(img)}-bit\n    - Dtype: {img.dtype}")
+        print(f"Loaded Image:\n    - Image size: {width}x{height}\
+              \n    - Bit depth: {get_bit_depth(img)}-bit\n    - Dtype: {img.dtype}\
+              \n    - Mean: {img.mean()}\n    - Max: {img.max()}\n    - Min: {img.min()}")
 
     return img
 
 
 
-def save(img, src, should_scale=False):
+def save(img, src, should_scale=False, auto_scale_method=True):
     """
     Save an image to disk.
 
@@ -169,14 +180,23 @@ def save(img, src, should_scale=False):
         src (str): Destination file path.
         should_scale (bool, optional): If True, scale pixel values to [0, 1]
                                        before saving (default: False).
+        auto_scale_method (bool, optionl): If True, the scaling will auto decide to up or down scale 
+                                            if should_sclae is also True else always down scale (default: True).
 
     Notes:
-        - The function uses OpenCV’s `cv2.imwrite` for saving.
+        - The function uses OpenCV's `cv2.imwrite` for saving.
         - The scaling logic divides by the maximum value representable
           by the bit depth, similar to the `open()` function.
     """
     if should_scale:
-        img = img / ((2**get_bit_depth(img)) -1)
+        img_max = ((2**get_bit_depth(img)) -1)
+        if auto_scale_method:
+            if img.max() < img_max*0.2:  # or just img.max() <= 1.1
+                img = img * img_max
+            else:
+                img = img / img_max
+        else:
+            img = img / img_max
 
     cv2.imwrite(src, img)
 

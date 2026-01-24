@@ -593,7 +593,7 @@ def merge(rays_1, rays_2, *other_rays_):
 
 def get_all_pixel_coordinates_in_between(x1, y1, x2, y2):
     """
-    Get all pixel coordinates along a line between two points using Bresenham’s algorithm.
+    Get all pixel coordinates along a line between two points using Bresenham's algorithm.
 
     https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
 

@@ -178,22 +178,22 @@ class PhysGenDataset(Dataset):
         - `get_linear_degree_range`: get a range for your beam-directions -> example beams between 0-360 with stepsize 10
         - `merge_rays`: merge 2 rays to one 'object'
     - `ism`
-        - `reflect_point_across_infinite_line`: Reflects a point across the infinite line defined by two endpoints.
-        - `paths_to_rays`: Converts polyline paths into your ray/segment representation, optionally normalizing points to ([0,1]) image space.
-        - `reflection_map_to_img`: Normalizes a float reflection/energy map to a uint8 visualization image in ([0,255]).
-        - `Segment`: Immutable dataclass representing a 2D line segment with convenience access to its endpoints.
-        - `_seg_seg_intersection`: Computes the unique intersection point of two finite 2D segments, returning None for parallel/colinear/no-hit cases.
-        - `_bresenham_points`: Generates all integer grid points along a line between two pixels using Bresenham’s algorithm.
-        - `is_visible_raster`: Tests line-of-sight between two points by checking whether Bresenham-sampled pixels hit an occlusion raster.
-        - `build_wall_mask`: Builds a binary 0/255 wall mask from an input image using explicit wall labels or mask-like heuristics.
-        - `get_wall_segments_from_mask`: Extracts wall boundary contours from a binary mask and converts them into geometric Segment primitives.
-        - `build_occlusion_from_wallmask`: Produces a binary occlusion raster (optionally dilated) used for fast visibility checks.
-        - `enumerate_wall_sequences_indices`: Enumerates all reflection sequences (as wall-index tuples) up to a maximum reflection order.
-        - `precompute_image_sources`: Computes image-source positions for each reflection sequence by iteratively mirroring the source across the corresponding walls.
-        - `build_path_for_sequence`: Reconstructs the specular reflection polyline for a given wall sequence by backtracking virtual receivers and segment intersections.
-        - `path_energy`: Computes a simple physically-inspired path contribution based on total path length and per-reflection losses.
-        - `check_path_visibility_raster`: Verifies that every segment of a candidate path is unobstructed using raster line-of-sight tests.
-        - `compute_reflection_map`: Evaluates all valid ISM paths from one source to a receiver grid and accumulates either path counts or energy (optionally dB).
+        - `reflect_point_across_infinite_line`: Reflects a point across the infinite line defined by two endpoints
+        - `paths_to_rays`: Converts polyline paths into your ray/segment representation, optionally normalizing points to ([0,1]) image space
+        - `reflection_map_to_img`: Normalizes a float reflection/energy map to a uint8 visualization image in ([0,255])
+        - `Segment`: Immutable dataclass representing a 2D line segment with convenience access to its endpoints
+        - `_seg_seg_intersection`: Computes the unique intersection point of two finite 2D segments, returning None for parallel/colinear/no-hit cases
+        - `_bresenham_points`: Generates all integer grid points along a line between two pixels using Bresenham’s algorithm
+        - `is_visible_raster`: Tests line-of-sight between two points by checking whether Bresenham-sampled pixels hit an occlusion raster
+        - `build_wall_mask`: Builds a binary 0/255 wall mask from an input image using explicit wall labels or mask-like heuristics
+        - `get_wall_segments_from_mask`: Extracts wall boundary contours from a binary mask and converts them into geometric Segment primitives
+        - `build_occlusion_from_wallmask`: Produces a binary occlusion raster (optionally dilated) used for fast visibility checks
+        - `enumerate_wall_sequences_indices`: Enumerates all reflection sequences (as wall-index tuples) up to a maximum reflection order
+        - `precompute_image_sources`: Computes image-source positions for each reflection sequence by iteratively mirroring the source across the corresponding walls
+        - `build_path_for_sequence`: Reconstructs the specular reflection polyline for a given wall sequence by backtracking virtual receivers and segment intersections
+        - `path_energy`: Computes a simple physically-inspired path contribution based on total path length and per-reflection losses
+        - `check_path_visibility_raster`: Verifies that every segment of a candidate path is unobstructed using raster line-of-sight tests
+        - `compute_reflection_map`: Evaluates all valid ISM paths from one source to a receiver grid and accumulates path counts
     - `img`
         - `open`: load an image via Open-CV
         - `save`: save an image
@@ -238,14 +238,9 @@ That are not all functions but the ones which should be most useful. Check out t
 [See also the example notebook 👀](./example/physgen.ipynb)
 
 In general you need to do:
-1. **Load your Image** -> using `ips.img.open`
-2. **Calculate the Wall-Map** -> using `ips.ray_tracing.get_wall_map`
-3. **Calculate the Beams** -> using `ips.img.open`
-4. **Draw (Export) the Beams** -> using `ips.img.open`
+1. Load your Image + Calculate the Wall-Map + **Calculate the Beams** -> using `ips.ray_tracing.trace_beams`
+2. **Draw (Export) the Beams on a image** -> using `ips.ray_tracing.draw_rays`
 
-Using this lib, this is reduced to:
-1. **Calculate the Beams** (including Wall-Map and loading your Image) -> using `ips.img.open`
-2. **Draw (Export) the Beams** -> using `ips.img.open`
 
 See this example:
 

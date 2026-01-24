@@ -7,6 +7,8 @@ from setuptools import setup, find_packages# , Extension
 with open("./README.md", "r") as f:
     readme = f.read()
 readme = readme.replace('src="./img_phy_sim/raytracing_example.png"', 'src="https://github.com/M-106/Image-Physics-Simulation/raw/main/img_phy_sim/raytracing_example.png"')
+readme = readme.replace('src="./img_phy_sim/ism_example.png"', 'src="https://github.com/M-106/Image-Physics-Simulation/raw/main/img_phy_sim/ism_example.png"')
+
 
 # ext_1 = Extension(
 #     name="img_phy_sim.ray_tracing",
@@ -36,7 +38,7 @@ setup(
     #     annotate=True,
     # ),
     name='img-phy-sim',
-    version='0.5',
+    version='0.8',
     packages=find_packages(),  # ['img_phy_sim'],
     install_requires=[
         # List any dependencies here, e.g. 'numpy', 'requests'
@@ -62,7 +64,7 @@ setup(
     long_description = readme,
     long_description_content_type="text/markdown",
     include_package_data=True,  # Ensures files from MANIFEST.in are included
-    download_url = 'https://github.com/M-106/Image-Physics-Simulation/archive/v_03.tar.gz',
+    download_url = 'https://github.com/M-106/Image-Physics-Simulation/archive/v_04.tar.gz',
     url="https://github.com/M-106/Image-Physics-Simulation",
     project_urls={
         "Documentation": "https://M-106.github.io/Image-Physics-Simulation/img_phy_sim",

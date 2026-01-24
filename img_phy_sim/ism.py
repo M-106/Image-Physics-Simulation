@@ -9,8 +9,7 @@ The environment is interpreted as a raster map where certain pixel values denote
 walls. From this, geometric wall segments are extracted and used to construct
 image sources for multiple reflection orders. For each receiver position on a
 grid, valid reflection paths from the source are built, validated using a
-raster-based visibility test, and accumulated into either a *path count map*
-or a physically-inspired *energy map*.
+raster-based visibility test, and accumulated into a *path count map*.
 
 The implementation avoids heavy geometry libraries (e.g., shapely) and instead
 relies on:
@@ -28,7 +27,7 @@ Core idea:
 4. For a grid of receiver positions:
    - Build candidate reflection paths
    - Check visibility against an occlusion raster
-   - Accumulate either path count or path energy
+   - Accumulate path count
 
 As ASCII model:
 ```text
@@ -85,18 +84,12 @@ As ASCII model:
                                 v
                  ┌──────────────────────────────┐
                  │  Accumulate contribution     │
-                 │  (count or energy)           │
                  └──────────────┬───────────────┘
                                 │
                                 v
                  ┌──────────────────────────────┐
                  │      Write into map          │
                  └──────────────┬───────────────┘
-                                │
-                                v
-                 ┌─────────────────────────────┐
-                 │ Optional: dB conversion     │
-                 └──────────────┬──────────────┘
                                 │
                                 v
                  ┌──────────────────────────────┐
@@ -110,13 +103,10 @@ Main features:
 - Raster-based visibility testing (very fast)
 - Support for higher reflection orders
 - Optional multiprocessing via joblib
-- Two output modes:
-  - `"count"`: number of valid reflection paths
-  - `"energy"`: distance-attenuated energy accumulation (+ dB map)
 
 Example:
 ```python
-count_map, _ = compute_map_ism_fast(
+count_map = compute_map_ism_fast(
     source_rel=(0.5, 0.5),
     img=segmentation_img,
     wall_values=[0],
@@ -134,7 +124,6 @@ Dependencies:
 
 Functions:
 * reflect_point_across_infinite_line(...)
-* paths_to_rays(...)
 * reflection_map_to_img(...)
 * Segment(...)
 * _seg_seg_intersection(...)
@@ -146,7 +135,6 @@ Functions:
 * enumerate_wall_sequences_indices(...)
 * precompute_image_sources(...)
 * build_path_for_sequence(...)
-* path_energy(...)
 * check_path_visibility_raster(...)
 * compute_reflection_map(...)
 
@@ -226,47 +214,7 @@ def reflect_point_across_infinite_line(P: Tuple[float, float], A: Tuple[float, f
 
 
 
-# not needed here but feel free to use
-def paths_to_rays(paths: List[List[Tuple[float, float]]], img_shape, should_scale=True):
-    """
-    Convert polyline paths into ray segment format.
-
-    Converts each path (a list of points) into a list of consecutive line
-    segments. Optionally normalizes coordinates to relative image space
-    using `normalize_point`.
-
-    Parameters:
-    - paths (List[List[Tuple[float, float]]]):
-        List of paths, where each path is a list of (x, y) points.
-    - img_shape (tuple):
-        Shape of the target image (H, W) or (H, W, C). Used for normalization.
-    - should_scale (bool):
-        If True, points are normalized using `normalize_point(W, H)`.
-        If False, points are kept in pixel coordinates.
-
-    Returns:
-    - list:
-        A list of rays, where each ray is a list of segments [[p0, p1], ...],
-        and each point is either normalized or in pixel coordinates depending
-        on `should_scale`.
-    """
-    H, W = img_shape[:2]
-    rays = []
-    for pts in paths:
-        ray = []
-        for a, b in zip(pts[:-1], pts[1:]):
-            if should_scale:
-                a2 = normalize_point(a, W, H)
-                b2 = normalize_point(b, W, H)
-            else:
-                a2, b2 = a, b
-            ray.append([a2, b2])
-        rays.append(ray)
-    return rays
-
-
-
-def reflection_map_to_img(energy_map):
+def reflection_map_to_img(reflection_map):
     """
     Convert an reflection map to a uint8 visualization image.
 
@@ -282,9 +230,9 @@ def reflection_map_to_img(energy_map):
     - np.ndarray:
         A uint8 image array with values in [0, 255].
     """
-    vis = energy_map.copy()
+    vis = reflection_map.copy()
     vis = vis / (vis.max() + 1e-9)
-    return (vis * 255).astype(np.uint8)
+    return (vis * 255).astype(np.float64)  # .astype(np.uint8)
 
 
 
@@ -731,48 +679,6 @@ def build_path_for_sequence(
     return [source_xy] + refl_points + [receiver_xy]
 
 
-def path_energy(points_xy: List[Tuple[float, float]], model: str = "3d", reflection_alpha: float = 0.2, eps: float = 1e-9) -> float:
-    """
-    Compute an energy score for a polyline path.
-
-    The energy is computed from the total path length and the number of
-    reflections, using a simple attenuation model:
-    - "2d": 1 / D
-    - "3d": 1 / D^2
-    Additionally, each reflection applies a multiplicative loss factor:
-    (1 - reflection_alpha) ^ n_reflections.
-
-    Parameters:
-    - points_xy (List[Tuple[float, float]]):
-        Path points in pixel coordinates [p0, p1, ..., pn].
-    - model (str):
-        Attenuation model. Supported: "2d", "3d".
-    - reflection_alpha (float):
-        Per-reflection loss coefficient in [0, 1). Higher means more loss.
-    - eps (float):
-        Small epsilon to avoid division-by-zero.
-
-    Returns:
-    - float:
-        Computed energy score for the path.
-    """
-    pts = np.array(points_xy, dtype=float)
-    seg = pts[1:] - pts[:-1]
-    dists = np.sqrt(seg[:, 0] ** 2 + seg[:, 1] ** 2)
-    D = float(dists.sum())
-    if D < eps:
-        return 0.0
-
-    if model == "2d":
-        E = 1.0 / (D + eps)
-    else:
-        E = 1.0 / (D * D + eps)
-
-    n_reflections = max(0, len(points_xy) - 2)
-    if n_reflections > 0:
-        E *= (1.0 - reflection_alpha) ** n_reflections
-    return float(E)
-
 
 def check_path_visibility_raster(points_xy: List[Tuple[float, float]], occ: np.ndarray, ignore_ends: int = 1) -> bool:
     """
@@ -810,14 +716,12 @@ def compute_reflection_map(
     wall_thickness: int = 1,
     approx_epsilon: float = 1.5,
     max_order: int = 1,
+    ignore_zero_order=False,
     step_px: int = 8,
-    mode: str = "count",  # "count" or "energy"
-    energy_model: str = "3d",
-    reflection_alpha: float = 0.2,
     forbid_immediate_repeat: bool = True,
     max_candidates: Optional[int] = None,
     ignore_ends: int = 1,
-    parallelization: int = 0,
+    parallelization: int = 0
 ):
     """
     Compute an ISM-based propagation map using fast raster visibility checks.
@@ -825,11 +729,6 @@ def compute_reflection_map(
     Builds wall geometry from an image, precomputes image sources for reflection
     sequences up to `max_order`, and evaluates valid paths from a source position
     to a grid of receiver points.
-
-    Two accumulation modes are supported:
-    - mode="count": counts the number of valid paths per receiver pixel
-    - mode="energy": sums a distance-attenuated energy contribution per receiver
-      and also returns a dB-scaled map
 
     Parameters:
     - source_rel (Tuple[float, float]):
@@ -845,14 +744,10 @@ def compute_reflection_map(
         Polygon approximation epsilon for contour simplification.
     - max_order (int):
         Maximum number of reflections considered (reflection order).
+    - ignore_zero_order (bool): 
+        Whether to ignore the zero order of reflections.
     - step_px (int):
         Receiver grid stride in pixels. Larger values are faster but coarser.
-    - mode (str):
-        Output mode: "count" or "energy".
-    - energy_model (str):
-        Energy attenuation model used when mode="energy". Supported: "2d", "3d".
-    - reflection_alpha (float):
-        Per-reflection loss coefficient used in energy mode.
     - forbid_immediate_repeat (bool):
         If True, disallows consecutive reflection on the same wall index.
     - max_candidates (Optional[int]):
@@ -864,11 +759,8 @@ def compute_reflection_map(
 
     Returns:
     - Tuple[np.ndarray, Optional[np.ndarray]]:
-        If mode="count":
-            (count_map, None)
-        If mode="energy":
-            (energy_map, db_map)
-        Both maps are float32 arrays of shape (H, W).
+        (count_map, None)
+        The map is a float32 array of shape (H, W).
     """
     if img.ndim == 3:
         # if it's RGB, convert to grayscale for wall picking if you do wall_values=None usage
@@ -897,16 +789,16 @@ def compute_reflection_map(
     def eval_receiver(R):
         val = 0.0
         for (seq, S_img) in pre:
+            if ignore_zero_order and len(seq) == 0:
+                continue
+
             pts = build_path_for_sequence(S, R, seq, S_img, walls)
             if pts is None:
                 continue
             if not check_path_visibility_raster(pts, occ, ignore_ends=ignore_ends):
                 continue
 
-            if mode == "count":
-                val += 1.0
-            else:
-                val += path_energy(pts, model=energy_model, reflection_alpha=reflection_alpha)
+            val += 1.0
 
         return (R[0], R[1], val)
 
@@ -920,19 +812,14 @@ def compute_reflection_map(
     else:
         results = [eval_receiver(R) for R in receivers]
 
+    # process results
     out_map = np.zeros((H, W), dtype=np.float32)
     for x, y, v in results:
         ix, iy = int(x), int(y)
         if 0 <= ix < W and 0 <= iy < H:
             out_map[iy, ix] = float(v)
 
-    if mode == "energy":
-        db_map = np.full((H, W), -np.inf, dtype=np.float32)
-        nonzero = out_map > 0
-        db_map[nonzero] = 10.0 * np.log10(out_map[nonzero])
-        return out_map, db_map
-
-    return out_map, None
+    return out_map
 
 
 
