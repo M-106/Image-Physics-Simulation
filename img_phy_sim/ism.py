@@ -721,6 +721,8 @@ def compute_reflection_map(
     forbid_immediate_repeat: bool = True,
     max_candidates: Optional[int] = None,
     ignore_ends: int = 1,
+    iterative_tracking=False,
+    iterative_steps=None,
     parallelization: int = 0
 ):
     """
@@ -748,6 +750,10 @@ def compute_reflection_map(
         Whether to ignore the zero order of reflections.
     - step_px (int):
         Receiver grid stride in pixels. Larger values are faster but coarser.
+    - iterative_tracking (bool):
+        Whether to calculate multiple timesteps.
+    - iterative_steps (int):
+        How many timesteps are wanted. -1 and None means all timesteps.
     - forbid_immediate_repeat (bool):
         If True, disallows consecutive reflection on the same wall index.
     - max_candidates (Optional[int]):
@@ -774,7 +780,7 @@ def compute_reflection_map(
     walls = get_wall_segments_from_mask(wall_mask_255, thickness=wall_thickness, approx_epsilon=approx_epsilon)
     occ = build_occlusion_from_wallmask(wall_mask_255, wall_thickness=wall_thickness)
 
-    # Precompute sequences + image sources once
+    # precompute sequences + image sources once
     pre = precompute_image_sources(
         source_xy=S,
         walls=walls,
@@ -783,10 +789,25 @@ def compute_reflection_map(
         max_candidates=max_candidates,
     )
 
-    # Receiver grid
+    # receiver grid
     receivers = [(x + 0.5, y + 0.5) for y in range(0, H, step_px) for x in range(0, W, step_px)]
 
-    def eval_receiver(R):
+    # output (set iterative)
+    output_map = np.zeros((H, W), dtype=np.float32)
+    snapshots = []  # list of np.ndarray
+
+    # always convert None to -1, means the same for thsi variable
+    if iterative_steps is None:
+        iterative_steps = -1
+
+    if not iterative_tracking or (iterative_tracking and iterative_steps == 1):
+        snapshot_every_x_steps = len(pre)
+    elif iterative_tracking and iterative_steps == -1:
+        snapshot_every_x_steps = 1
+    else:
+        snapshot_every_x_steps = int( len(pre) // iterative_steps )
+
+    def eval_receiver(R, pre):
         val = 0.0
         for (seq, S_img) in pre:
             if ignore_zero_order and len(seq) == 0:
@@ -802,24 +823,34 @@ def compute_reflection_map(
 
         return (R[0], R[1], val)
 
-    # compute
-    if parallelization and parallelization != 0:
-        if Parallel is None:
-            raise RuntimeError("joblib not available but parallelization requested.")
-        results = Parallel(n_jobs=parallelization, backend="loky", prefer="processes", batch_size=16)(
-            delayed(eval_receiver)(R) for R in receivers
-        )
+    # compute -> optional iterativly
+    for start_idx in range(0, len(pre), snapshot_every_x_steps):
+        pre_chunk = pre[start_idx:start_idx+snapshot_every_x_steps]
+
+        if parallelization and parallelization != 0:
+            if Parallel is None:
+                raise RuntimeError("joblib not available but parallelization requested.")
+            results = Parallel(n_jobs=parallelization, backend="loky", prefer="processes", batch_size=16)(
+                delayed(eval_receiver)(R, pre_chunk) for R in receivers
+            )
+        else:
+            results = [eval_receiver(R, pre_chunk) for R in receivers]
+
+        # summarize current chunk to final output map
+
+        # process results
+        for x, y, v in results:
+            ix, iy = int(x), int(y)
+            if 0 <= ix < W and 0 <= iy < H:
+                output_map[iy, ix] += float(v)
+
+        snapshots += [output_map.copy()]
+
+    # return output
+    if not iterative_tracking:  # len(snapshots) <= 1
+        return output_map
     else:
-        results = [eval_receiver(R) for R in receivers]
-
-    # process results
-    out_map = np.zeros((H, W), dtype=np.float32)
-    for x, y, v in results:
-        ix, iy = int(x), int(y)
-        if 0 <= ix < W and 0 <= iy < H:
-            out_map[iy, ix] = float(v)
-
-    return out_map
+        return snapshots  # [::-1]
 
 
 

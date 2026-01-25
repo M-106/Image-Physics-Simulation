@@ -615,7 +615,100 @@ Short form:
 
 How to use which of them in `img-phy-sim`:
 
-FIXME
+Classical Ray-Tracing:
+```python
+# calc rays
+rays = ips.ray_tracing.trace_beams(rel_position=[0.5, 0.5], 
+                                   img_src=input_src, 
+                                   directions_in_degree=ips.math.get_linear_degree_range(start=0, stop=360, step_size=5),
+                                   wall_values=None, 
+                                   wall_thickness=1,
+                                   img_border_also_collide=False,
+                                   reflexion_order=3,
+                                   should_scale_rays=True,
+                                   should_scale_img=False)
 
+# show rays on input
+ray_img = ips.ray_tracing.draw_rays(rays, detail_draw=False, 
+                                    output_format="single_image", 
+                                    img_background=input_, ray_value=2, ray_thickness=1, 
+                                    img_shape=(256, 256), dtype=float, standard_value=0,
+                                    should_scale_rays_to_image=True, original_max_width=None, original_max_height=None,
+                                    show_only_reflections=True)
+ips.img.imshow(ray_img, size=4)
+```
+
+ISM:
+```python
+reflection_map = ips.ism.compute_reflection_map(
+    source_rel=(0.5, 0.5),
+    img=ips.img.open(input_src),
+    wall_values=[0],   
+    wall_thickness=1,
+    max_order=1,
+    step_px=1,
+    parallelization=-1
+)
+
+ips.img.imshow(ips.ism.reflection_map_to_img(reflection_map), size=5)
+```
+
+<br><br>
+
+Both formats are also available in a **iterative format**.
+
+
+Classical Ray-Tracing:
+```python
+rays_ = ips.ray_tracing.trace_beams(rel_position=[0.5, 0.5], 
+                                   img_src=img_src, 
+                                   directions_in_degree=[22, 56, 90, 146, 234, 285, 320],
+                                   wall_values=0.0, 
+                                   wall_thickness=0,
+                                   img_border_also_collide=False,
+                                   reflexion_order=2,
+                                   should_scale_rays=False,
+                                   should_scale_img=True,
+                                   iterative_tracking=True,    # IMPORTANT
+                                   iterative_steps=None        # IMPORTANT
+                                   )
+print("\nAccessing works the same, example Ray:", rays_[0][0][:min(len(rays_[0][0])-1, 3)])
+
+ray_imgs = ips.ray_tracing.draw_rays(rays_, detail_draw=False, 
+                                    output_format="single_image", 
+                                    img_background=img, ray_value=2, ray_thickness=1, 
+                                    img_shape=(256, 256), dtype=float, standard_value=0,
+                                    should_scale_rays_to_image=False, original_max_width=None, original_max_height=None)
+
+ips.img.advanced_imshow(ray_imgs[:10], title=None, image_width=4, axis=False,
+                        color_space="gray", cmap=None, cols=5, save_to=None,
+                        hspace=0.2, wspace=0.2,
+                        use_original_style=False, invert=False)
+```
+
+ISM:
+```python
+reflection_map_per_time = ips.ism.compute_reflection_map(
+    source_rel=(0.5, 0.5),
+    img=ips.img.open(input_src),
+    wall_values=[0],   
+    wall_thickness=1,
+    max_order=1,
+    step_px=1,
+    iterative_tracking=True,
+    iterative_steps=6,    # IMPORTANT
+    parallelization=-1    # IMPORTANT
+)
+
+ips.img.imshow(ips.ism.reflection_map_to_img(reflection_map_per_time[0]), size=5)
+
+len_ = len(reflection_map_per_time)
+ips.img.advanced_imshow([reflection_map_per_time[0], reflection_map_per_time[1], reflection_map_per_time[2],
+                         reflection_map_per_time[3], reflection_map_per_time[4], reflection_map_per_time[5]], 
+                        title=None, image_width=4, axis=False,
+                        color_space="gray", cmap=None, cols=3, save_to=None,
+                        hspace=0.2, wspace=0.2,
+                        use_original_style=False, invert=False)
+```
 
 
