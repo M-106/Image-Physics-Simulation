@@ -61,6 +61,16 @@ Functions:
 import math
 import numpy as np
 
+import numba
+
+
+
+# -----------------
+# >>> Constants <<<
+# -----------------
+_DEG2RAD = math.pi / 180.0
+_RAD2DEG = 180.0 / math.pi
+
 
 
 # -----------------
@@ -94,13 +104,15 @@ def degree_to_vector(degree):
     Returns:
     - list: 2D vector [cos(degree), sin(degree)].
     """
-    rad = math.radians(degree)
-    return [math.cos(rad), math.sin(rad)]
+    # rad = math.radians(degree)
+    # return [math.cos(rad), math.sin(rad)]
+    rad = degree * _DEG2RAD
+    return (math.cos(rad), math.sin(rad))
 
 
 
 
-def vector_to_degree(vector):
+def vector_to_degree(x, y):
     """
     Convert a 2D vector into its corresponding degree angle.
 
@@ -110,13 +122,15 @@ def vector_to_degree(vector):
     Returns:
     - int: Angle in degrees within the range [0, 360).
     """
-    x, y = vector
-    degree = math.degrees(math.atan2(y, x))  # atan2 returns angles between -180° and 180°
-    return int( degree % 360 ) 
+    # x, y = vector
+    # degree = math.degrees(math.atan2(y, x))  # atan2 returns angles between -180° and 180°
+    # return int( degree % 360 ) 
+    deg = math.atan2(y, x) * _RAD2DEG
+    return int(deg % 360.0)
 
 
 
-def normalize_point(point, width, height):
+def normalize_point(x, y, width, height):
     """
     Normalize a 2D point to the range [0, 1].
 
@@ -128,12 +142,14 @@ def normalize_point(point, width, height):
     Returns:
     - tuple: Normalized point (x / (width - 1), y / (height - 1)).
     """
-    return (point[0] / (width - 1), point[1] / (height - 1))
+    # return (x / (width - 1), y / (height - 1))
+    return ( (1.0 / (width - 1.0))*x, 
+             (1.0 / (height - 1.0))*y)
 
 
 
 
-def denormalize_point(point, width, height):
+def denormalize_point(x, y, width, height):
     """
     Denormalize a 2D point from normalized coordinates back to pixel coordinates.
 
@@ -145,7 +161,7 @@ def denormalize_point(point, width, height):
     Returns:
     - tuple: Denormalized point (x * (width - 1), y * (height - 1)).
     """
-    return (point[0] * (width - 1), point[1] * (height - 1))
+    return (x * (width - 1.0), y * (height - 1.0))
 
 
 
@@ -181,5 +197,12 @@ def numpy_info(numpy_array, should_print=True):
 
 
 
+# -----------------------
+# >>> Numba Functions <<<
+# -----------------------
+degree_to_vector_numba = numba.njit(cache=True, fastmath=True)(degree_to_vector)
+vector_to_degree_numba = numba.njit(cache=True, fastmath=True)(vector_to_degree)
+normalize_point_numba = numba.njit(cache=True, fastmath=True)(normalize_point)
+denormalize_point_numba = numba.njit(cache=True, fastmath=True)(denormalize_point)
 
 

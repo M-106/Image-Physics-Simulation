@@ -179,15 +179,15 @@ def reflect_point_across_infinite_line(P: Tuple[float, float], A: Tuple[float, f
     passing through points A and B.
 
     Parameters:
-    - P (Tuple[float, float]):
+    - P (Tuple[float, float]): <br>
         The point to reflect (x, y).
-    - A (Tuple[float, float]):
+    - A (Tuple[float, float]): <br>
         First point defining the line (x, y).
-    - B (Tuple[float, float]):
+    - B (Tuple[float, float]): <br>
         Second point defining the line (x, y).
 
     Returns:
-    - Tuple[float, float]:
+    - Tuple[float, float]: <br>
         The reflected point (x, y) as floats.
     """
     x1, y1 = A
@@ -223,11 +223,11 @@ def reflection_map_to_img(reflection_map):
     to uint8.
 
     Parameters:
-    - reflection_map (np.ndarray):
+    - reflection_map (np.ndarray): <br>
         A numeric array representing reflection values.
 
     Returns:
-    - np.ndarray:
+    - np.ndarray: <br>
         A uint8 image array with values in [0, 255].
     """
     vis = reflection_map.copy()
@@ -255,9 +255,9 @@ class Segment:
     - by (float): y-coordinate of the second endpoint.
 
     Properties:
-    - A (Tuple[float, float]):
+    - A (Tuple[float, float]): <br>
         First endpoint (ax, ay).
-    - B (Tuple[float, float]):
+    - B (Tuple[float, float]): <br>
         Second endpoint (bx, by).
     """
     ax: float
@@ -282,19 +282,19 @@ def _seg_seg_intersection(p0, p1, q0, q1, eps=1e-9) -> Optional[Tuple[float, flo
     are colinear/overlapping (ambiguous), it returns None.
 
     Parameters:
-    - p0 (Tuple[float, float]):
+    - p0 (Tuple[float, float]): <br>
         Start point of the first segment.
-    - p1 (Tuple[float, float]):
+    - p1 (Tuple[float, float]): <br>
         End point of the first segment.
-    - q0 (Tuple[float, float]):
+    - q0 (Tuple[float, float]): <br>
         Start point of the second segment.
-    - q1 (Tuple[float, float]):
+    - q1 (Tuple[float, float]): <br>
         End point of the second segment.
-    - eps (float):
+    - eps (float): <br>
         Numerical tolerance used for parallel/colinear checks and bounds.
 
     Returns:
-    - Optional[Tuple[float, float]]:
+    - Optional[Tuple[float, float]]: <br>
         The intersection point (x, y) if a unique intersection exists,
         otherwise None.
     """
@@ -342,17 +342,17 @@ def _bresenham_points(x0: int, y0: int, x1: int, y1: int) -> Iterable[Tuple[int,
     algorithm between (x0, y0) and (x1, y1), inclusive.
 
     Parameters:
-    - x0 (int):
+    - x0 (int): <br>
         Start x coordinate.
-    - y0 (int):
+    - y0 (int): <br>
         Start y coordinate.
-    - x1 (int):
+    - x1 (int): <br>
         End x coordinate.
-    - y1 (int):
+    - y1 (int): <br>
         End y coordinate.
 
     Returns:
-    - Iterable[Tuple[int, int]]:
+    - Iterable[Tuple[int, int]]: <br>
         An iterator over (x, y) integer points along the rasterized line.
     """
     dx = abs(x1 - x0)
@@ -383,18 +383,18 @@ def is_visible_raster(p1: Tuple[float, float], p2: Tuple[float, float], occ: np.
     at both ends of the ray, which is useful to allow rays to touch wall endpoints.
 
     Parameters:
-    - p1 (Tuple[float, float]):
+    - p1 (Tuple[float, float]): <br>
         Start point (x, y) in pixel coordinates.
-    - p2 (Tuple[float, float]):
+    - p2 (Tuple[float, float]): <br>
         End point (x, y) in pixel coordinates.
-    - occ (np.ndarray):
+    - occ (np.ndarray): <br>
         Occlusion map where nonzero values indicate blocked pixels.
         Expected shape is (H, W) or compatible indexing occ[y, x].
-    - ignore_ends (int):
+    - ignore_ends (int): <br>
         Number of pixels to ignore at both ends of the sampled line.
 
     Returns:
-    - bool:
+    - bool: <br>
         True if the line between p1 and p2 is not occluded, otherwise False.
     """
     H, W = occ.shape[:2]
@@ -436,14 +436,14 @@ def build_wall_mask(img: np.ndarray, wall_values=None) -> np.ndarray:
     to uint8 and optionally scales low-range masks to 0/255.
 
     Parameters:
-    - img (np.ndarray):
+    - img (np.ndarray): <br>
         Input image. Can be a label image, grayscale mask, or wall mask source.
-    - wall_values (optional):
+    - wall_values (optional): <br>
         Values in `img` that should be interpreted as walls. Typically a list
         or tuple of labels. If None, `img` is treated as a mask-like image.
 
     Returns:
-    - np.ndarray:
+    - np.ndarray: <br>
         A uint8 wall mask with values 0 (free) and 255 (wall).
     """
     if wall_values is not None:
@@ -466,17 +466,17 @@ def get_wall_segments_from_mask(mask_255: np.ndarray, thickness: int = 1, approx
     instances.
 
     Parameters:
-    - mask_255 (np.ndarray):
+    - mask_255 (np.ndarray): <br>
         Binary wall mask with values 0 and 255.
-    - thickness (int):
+    - thickness (int): <br>
         Optional dilation thickness applied to edges before contour extraction.
         Values > 1 thicken edges to improve contour continuity.
-    - approx_epsilon (float):
+    - approx_epsilon (float): <br>
         Epsilon value for contour polygon approximation (cv2.approxPolyDP).
         Higher values simplify contours more aggressively.
 
     Returns:
-    - List[Segment]:
+    - List[Segment]: <br>
         List of wall boundary segments in pixel coordinates.
     """
     edges = cv2.Canny(mask_255, 100, 200)
@@ -517,13 +517,13 @@ def build_occlusion_from_wallmask(mask_255: np.ndarray, wall_thickness: int = 1)
     the walls to increase effective thickness for visibility checks.
 
     Parameters:
-    - mask_255 (np.ndarray):
+    - mask_255 (np.ndarray): <br>
         Wall mask with values 0 and 255.
-    - wall_thickness (int):
+    - wall_thickness (int): <br>
         If > 1, dilates the occlusion map using a square kernel to thicken walls.
 
     Returns:
-    - np.ndarray:
+    - np.ndarray: <br>
         Binary occlusion map of dtype uint8 with values:
         - 0 for free space
         - 1 for occluded (wall) pixels
@@ -549,16 +549,16 @@ def enumerate_wall_sequences_indices(n_walls: int, max_order: int, forbid_immedi
     from 0 up to `max_order`. The empty sequence () represents the direct path.
 
     Parameters:
-    - n_walls (int):
+    - n_walls (int): <br>
         Number of available wall segments.
-    - max_order (int):
+    - max_order (int): <br>
         Maximum reflection order (length of sequence).
-    - forbid_immediate_repeat (bool):
+    - forbid_immediate_repeat (bool): <br>
         If True, prevents sequences with the same wall repeated consecutively,
         e.g., (..., 3, 3) is disallowed.
 
     Returns:
-    - List[Tuple[int, ...]]:
+    - List[Tuple[int, ...]]: <br>
         List of sequences, each a tuple of wall indices.
     """
     seqs = [()]
@@ -588,21 +588,21 @@ def precompute_image_sources(
     position S_img.
 
     Parameters:
-    - source_xy (Tuple[float, float]):
+    - source_xy (Tuple[float, float]): <br>
         Source position in pixel coordinates (x, y).
-    - walls (List[Segment]):
+    - walls (List[Segment]): <br>
         Wall segments used for reflection.
-    - max_order (int):
+    - max_order (int): <br>
         Maximum reflection order to consider.
-    - forbid_immediate_repeat (bool):
+    - forbid_immediate_repeat (bool): <br>
         If True, prevents immediate repetition of the same wall in sequences.
-    - max_candidates (Optional[int]):
+    - max_candidates (Optional[int]): <br>
         If provided, truncates the generated sequence list to at most this many
         candidates (useful as a speed cap).
 
     Returns:
-    - List[Tuple[Tuple[int, ...], Tuple[float, float]]]:
-        A list of tuples (seq, S_img) where:
+    - List[Tuple[Tuple[int, ...], Tuple[float, float]]]: <br>
+        A list of tuples (seq, S_img) where: 
         - seq is the wall-index sequence
         - S_img is the resulting image source position
     """
@@ -641,21 +641,21 @@ def build_path_for_sequence(
     accumulating reflection points in reverse order.
 
     Parameters:
-    - source_xy (Tuple[float, float]):
+    - source_xy (Tuple[float, float]): <br>
         Real source position in pixel coordinates (x, y).
-    - receiver_xy (Tuple[float, float]):
+    - receiver_xy (Tuple[float, float]): <br>
         Receiver position in pixel coordinates (x, y).
-    - seq (Tuple[int, ...]):
+    - seq (Tuple[int, ...]): <br>
         Wall index sequence describing the reflection order.
-    - S_img (Tuple[float, float]):
+    - S_img (Tuple[float, float]): <br>
         Precomputed image source position for `seq`.
-    - walls (List[Segment]):
+    - walls (List[Segment]): <br>
         Wall segments.
 
     Returns:
-    - Optional[List[Tuple[float, float]]]:
-        If valid, returns the full path as:
-        [source_xy, r1, r2, ..., receiver_xy].
+    - Optional[List[Tuple[float, float]]]: <br>
+        If valid, returns the full path as: <br>
+        [source_xy, r1, r2, ..., receiver_xy]. <br>
         Returns None if any required intersection fails.
     """
     if len(seq) == 0:
@@ -687,15 +687,15 @@ def check_path_visibility_raster(points_xy: List[Tuple[float, float]], occ: np.n
     Runs `is_visible_raster` on every consecutive point pair in the path.
 
     Parameters:
-    - points_xy (List[Tuple[float, float]]):
+    - points_xy (List[Tuple[float, float]]): <br>
         Path points [p0, p1, ..., pn].
-    - occ (np.ndarray):
+    - occ (np.ndarray): <br>
         Occlusion map where nonzero values indicate blocked pixels.
-    - ignore_ends (int):
+    - ignore_ends (int): <br>
         Number of pixels to ignore at the ends of each segment.
 
     Returns:
-    - bool:
+    - bool: <br>
         True if every segment is visible, otherwise False.
     """
     for a, b in zip(points_xy[:-1], points_xy[1:]):
@@ -733,39 +733,39 @@ def compute_reflection_map(
     to a grid of receiver points.
 
     Parameters:
-    - source_rel (Tuple[float, float]):
+    - source_rel (Tuple[float, float]): <br>
         Source position in relative coordinates (sx, sy) in [0, 1], scaled by (W, H).
-    - img (np.ndarray):
+    - img (np.ndarray): <br>
         Input image describing the environment. Can be (H, W) or (H, W, C).
         Typically a label map or a wall mask source.
-    - wall_values:
+    - wall_values: <br>
         Label values that indicate walls. If None, `img` is treated as mask-like.
-    - wall_thickness (int):
+    - wall_thickness (int): <br>
         Wall thickening used both for edge extraction and occlusion dilation.
-    - approx_epsilon (float):
+    - approx_epsilon (float): <br>
         Polygon approximation epsilon for contour simplification.
-    - max_order (int):
+    - max_order (int): <br>
         Maximum number of reflections considered (reflection order).
-    - ignore_zero_order (bool): 
+    - ignore_zero_order (bool):  <br>
         Whether to ignore the zero order of reflections.
-    - step_px (int):
+    - step_px (int): <br>
         Receiver grid stride in pixels. Larger values are faster but coarser.
-    - iterative_tracking (bool):
+    - iterative_tracking (bool): <br>
         Whether to calculate multiple timesteps.
-    - iterative_steps (int):
+    - iterative_steps (int): <br>
         How many timesteps are wanted. -1 and None means all timesteps.
-    - forbid_immediate_repeat (bool):
+    - forbid_immediate_repeat (bool): <br>
         If True, disallows consecutive reflection on the same wall index.
-    - max_candidates (Optional[int]):
+    - max_candidates (Optional[int]): <br>
         Optional cap on the number of reflection sequences evaluated.
-    - ignore_ends (int):
+    - ignore_ends (int): <br>
         Ignore N pixels at each end of visibility checks to allow endpoint contact.
-    - parallelization (int):
+    - parallelization (int): <br>
         If nonzero, uses joblib Parallel with n_jobs=parallelization.
 
     Returns:
-    - Tuple[np.ndarray, Optional[np.ndarray]]:
-        (count_map, None)
+    - Tuple[np.ndarray, Optional[np.ndarray]]: <br>
+        (count_map, None) <br>
         The map is a float32 array of shape (H, W).
     """
     if img.ndim == 3:

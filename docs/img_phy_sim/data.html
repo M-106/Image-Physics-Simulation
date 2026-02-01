@@ -375,13 +375,13 @@ Export PhysGen inputs and targets as PNG images to disk.</li>
 </span><span id="L-167"><a href="#L-167"><span class="linenos">167</span></a><span class="sd">            Loads PhysGen Dataset.</span>
 </span><span id="L-168"><a href="#L-168"><span class="linenos">168</span></a>
 </span><span id="L-169"><a href="#L-169"><span class="linenos">169</span></a><span class="sd">            Parameters:</span>
-</span><span id="L-170"><a href="#L-170"><span class="linenos">170</span></a><span class="sd">            - variation : str</span>
+</span><span id="L-170"><a href="#L-170"><span class="linenos">170</span></a><span class="sd">            - variation : str &lt;br&gt;</span>
 </span><span id="L-171"><a href="#L-171"><span class="linenos">171</span></a><span class="sd">                Chooses the used dataset variant: sound_baseline, sound_reflection, sound_diffraction, sound_combined.</span>
-</span><span id="L-172"><a href="#L-172"><span class="linenos">172</span></a><span class="sd">            - mode : str</span>
+</span><span id="L-172"><a href="#L-172"><span class="linenos">172</span></a><span class="sd">            - mode : str &lt;br&gt;</span>
 </span><span id="L-173"><a href="#L-173"><span class="linenos">173</span></a><span class="sd">                Can be &quot;train&quot;, &quot;test&quot;, &quot;eval&quot;.</span>
-</span><span id="L-174"><a href="#L-174"><span class="linenos">174</span></a><span class="sd">            - input_type : str</span>
+</span><span id="L-174"><a href="#L-174"><span class="linenos">174</span></a><span class="sd">            - input_type : str &lt;br&gt;</span>
 </span><span id="L-175"><a href="#L-175"><span class="linenos">175</span></a><span class="sd">                Defines the used Input -&gt; &quot;osm&quot;, &quot;base_simulation&quot;</span>
-</span><span id="L-176"><a href="#L-176"><span class="linenos">176</span></a><span class="sd">            - output_type : str</span>
+</span><span id="L-176"><a href="#L-176"><span class="linenos">176</span></a><span class="sd">            - output_type : str &lt;br&gt;</span>
 </span><span id="L-177"><a href="#L-177"><span class="linenos">177</span></a><span class="sd">                Defines the Output -&gt; &quot;standard&quot;, &quot;complex_only&quot;</span>
 </span><span id="L-178"><a href="#L-178"><span class="linenos">178</span></a><span class="sd">            &quot;&quot;&quot;</span>
 </span><span id="L-179"><a href="#L-179"><span class="linenos">179</span></a>            <span class="bp">self</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="s1">&#39;cuda&#39;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s1">&#39;mps&#39;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">backends</span><span class="o">.</span><span class="n">mps</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s1">&#39;cpu&#39;</span>
@@ -706,13 +706,13 @@ Export PhysGen inputs and targets as PNG images to disk.</li>
 </span><span id="PhysGenDataset-168"><a href="#PhysGenDataset-168"><span class="linenos">168</span></a><span class="sd">            Loads PhysGen Dataset.</span>
 </span><span id="PhysGenDataset-169"><a href="#PhysGenDataset-169"><span class="linenos">169</span></a>
 </span><span id="PhysGenDataset-170"><a href="#PhysGenDataset-170"><span class="linenos">170</span></a><span class="sd">            Parameters:</span>
-</span><span id="PhysGenDataset-171"><a href="#PhysGenDataset-171"><span class="linenos">171</span></a><span class="sd">            - variation : str</span>
+</span><span id="PhysGenDataset-171"><a href="#PhysGenDataset-171"><span class="linenos">171</span></a><span class="sd">            - variation : str &lt;br&gt;</span>
 </span><span id="PhysGenDataset-172"><a href="#PhysGenDataset-172"><span class="linenos">172</span></a><span class="sd">                Chooses the used dataset variant: sound_baseline, sound_reflection, sound_diffraction, sound_combined.</span>
-</span><span id="PhysGenDataset-173"><a href="#PhysGenDataset-173"><span class="linenos">173</span></a><span class="sd">            - mode : str</span>
+</span><span id="PhysGenDataset-173"><a href="#PhysGenDataset-173"><span class="linenos">173</span></a><span class="sd">            - mode : str &lt;br&gt;</span>
 </span><span id="PhysGenDataset-174"><a href="#PhysGenDataset-174"><span class="linenos">174</span></a><span class="sd">                Can be &quot;train&quot;, &quot;test&quot;, &quot;eval&quot;.</span>
-</span><span id="PhysGenDataset-175"><a href="#PhysGenDataset-175"><span class="linenos">175</span></a><span class="sd">            - input_type : str</span>
+</span><span id="PhysGenDataset-175"><a href="#PhysGenDataset-175"><span class="linenos">175</span></a><span class="sd">            - input_type : str &lt;br&gt;</span>
 </span><span id="PhysGenDataset-176"><a href="#PhysGenDataset-176"><span class="linenos">176</span></a><span class="sd">                Defines the used Input -&gt; &quot;osm&quot;, &quot;base_simulation&quot;</span>
-</span><span id="PhysGenDataset-177"><a href="#PhysGenDataset-177"><span class="linenos">177</span></a><span class="sd">            - output_type : str</span>
+</span><span id="PhysGenDataset-177"><a href="#PhysGenDataset-177"><span class="linenos">177</span></a><span class="sd">            - output_type : str &lt;br&gt;</span>
 </span><span id="PhysGenDataset-178"><a href="#PhysGenDataset-178"><span class="linenos">178</span></a><span class="sd">                Defines the Output -&gt; &quot;standard&quot;, &quot;complex_only&quot;</span>
 </span><span id="PhysGenDataset-179"><a href="#PhysGenDataset-179"><span class="linenos">179</span></a><span class="sd">            &quot;&quot;&quot;</span>
 </span><span id="PhysGenDataset-180"><a href="#PhysGenDataset-180"><span class="linenos">180</span></a>            <span class="bp">self</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="s1">&#39;cuda&#39;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s1">&#39;mps&#39;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">backends</span><span class="o">.</span><span class="n">mps</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s1">&#39;cpu&#39;</span>
@@ -809,13 +809,13 @@ dataset with non-integral indices/keys, a custom sampler must be provided.</p>
 </span><span id="PhysGenDataset.__init__-168"><a href="#PhysGenDataset.__init__-168"><span class="linenos">168</span></a><span class="sd">            Loads PhysGen Dataset.</span>
 </span><span id="PhysGenDataset.__init__-169"><a href="#PhysGenDataset.__init__-169"><span class="linenos">169</span></a>
 </span><span id="PhysGenDataset.__init__-170"><a href="#PhysGenDataset.__init__-170"><span class="linenos">170</span></a><span class="sd">            Parameters:</span>
-</span><span id="PhysGenDataset.__init__-171"><a href="#PhysGenDataset.__init__-171"><span class="linenos">171</span></a><span class="sd">            - variation : str</span>
+</span><span id="PhysGenDataset.__init__-171"><a href="#PhysGenDataset.__init__-171"><span class="linenos">171</span></a><span class="sd">            - variation : str &lt;br&gt;</span>
 </span><span id="PhysGenDataset.__init__-172"><a href="#PhysGenDataset.__init__-172"><span class="linenos">172</span></a><span class="sd">                Chooses the used dataset variant: sound_baseline, sound_reflection, sound_diffraction, sound_combined.</span>
-</span><span id="PhysGenDataset.__init__-173"><a href="#PhysGenDataset.__init__-173"><span class="linenos">173</span></a><span class="sd">            - mode : str</span>
+</span><span id="PhysGenDataset.__init__-173"><a href="#PhysGenDataset.__init__-173"><span class="linenos">173</span></a><span class="sd">            - mode : str &lt;br&gt;</span>
 </span><span id="PhysGenDataset.__init__-174"><a href="#PhysGenDataset.__init__-174"><span class="linenos">174</span></a><span class="sd">                Can be &quot;train&quot;, &quot;test&quot;, &quot;eval&quot;.</span>
-</span><span id="PhysGenDataset.__init__-175"><a href="#PhysGenDataset.__init__-175"><span class="linenos">175</span></a><span class="sd">            - input_type : str</span>
+</span><span id="PhysGenDataset.__init__-175"><a href="#PhysGenDataset.__init__-175"><span class="linenos">175</span></a><span class="sd">            - input_type : str &lt;br&gt;</span>
 </span><span id="PhysGenDataset.__init__-176"><a href="#PhysGenDataset.__init__-176"><span class="linenos">176</span></a><span class="sd">                Defines the used Input -&gt; &quot;osm&quot;, &quot;base_simulation&quot;</span>
-</span><span id="PhysGenDataset.__init__-177"><a href="#PhysGenDataset.__init__-177"><span class="linenos">177</span></a><span class="sd">            - output_type : str</span>
+</span><span id="PhysGenDataset.__init__-177"><a href="#PhysGenDataset.__init__-177"><span class="linenos">177</span></a><span class="sd">            - output_type : str &lt;br&gt;</span>
 </span><span id="PhysGenDataset.__init__-178"><a href="#PhysGenDataset.__init__-178"><span class="linenos">178</span></a><span class="sd">                Defines the Output -&gt; &quot;standard&quot;, &quot;complex_only&quot;</span>
 </span><span id="PhysGenDataset.__init__-179"><a href="#PhysGenDataset.__init__-179"><span class="linenos">179</span></a><span class="sd">            &quot;&quot;&quot;</span>
 </span><span id="PhysGenDataset.__init__-180"><a href="#PhysGenDataset.__init__-180"><span class="linenos">180</span></a>            <span class="bp">self</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="s1">&#39;cuda&#39;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s1">&#39;mps&#39;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">backends</span><span class="o">.</span><span class="n">mps</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s1">&#39;cpu&#39;</span>
@@ -842,13 +842,13 @@ dataset with non-integral indices/keys, a custom sampler must be provided.</p>
 <p>Parameters:</p>
 
 <ul>
-<li>variation : str
+<li>variation : str <br>
 Chooses the used dataset variant: sound_baseline, sound_reflection, sound_diffraction, sound_combined.</li>
-<li>mode : str
+<li>mode : str <br>
 Can be "train", "test", "eval".</li>
-<li>input_type : str
+<li>input_type : str <br>
 Defines the used Input -> "osm", "base_simulation"</li>
-<li>output_type : str
+<li>output_type : str <br>
 Defines the Output -> "standard", "complex_only"</li>
 </ul>
 </div>

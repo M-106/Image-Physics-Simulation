@@ -11,3 +11,5 @@ dist
 
 img_phy_sim.egg-info/*
 example/my_awesome_ray_iterator.pkl
+example/ism_iterative_example.png
+example/iterative_example.png

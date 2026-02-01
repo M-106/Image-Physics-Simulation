@@ -69,7 +69,8 @@ Functions:
 # >>> Imports <<<
 # ---------------
 from .img import open as img_open, get_width_height
-from .math import degree_to_vector, vector_to_degree, normalize_point
+from .math import degree_to_vector, vector_to_degree, normalize_point, \
+                  degree_to_vector_numba, vector_to_degree_numba, normalize_point_numba
 
 import builtins
 import pickle
@@ -79,7 +80,11 @@ import copy
 import numpy as np
 import cv2
 
+# performance optimization
 from joblib import Parallel, delayed
+import numba
+from numba.typed import List
+from numba import types
 
 
 
@@ -96,12 +101,12 @@ class RayIterator:
         Initialize a RayIterator instance.
         
         Parameters:
-        - other_ray_iterator (RayIterator, optional): 
+        - other_ray_iterator (RayIterator, optional): <br>
             An existing RayIterator to copy. If provided, creates a deep copy 
             of the other iterator's rays_collection. If None, creates an empty iterator.
             
-        Returns:
-        - None
+        Returns: <br>
+        None
         """
         if other_ray_iterator is None:
             self.rays_collection = []
@@ -112,7 +117,7 @@ class RayIterator:
         """
         Return a string representation of the RayIterator.
         
-        Returns:
+        Returns:<br>
         str: String representation showing the number of iterations/time-steps.
         """
         return f"RayIterator with {self.len_iterations()} iterations (time-steps)."
@@ -121,7 +126,7 @@ class RayIterator:
         """
         Make the RayIterator iterable over its rays collections.
         
-        Yields:
+        Yields:<br>
         list: Each iteration's collection of rays.
         """
         for rays in self.rays_collection:
@@ -134,7 +139,7 @@ class RayIterator:
         Parameters:
         - key (int or slice): Index or slice to access rays in the latest iteration.
         
-        Returns:
+        Returns:<br>
         list: Rays from the latest iteration corresponding to the key.
         """
         return self.rays_collection[-1][key]
@@ -143,7 +148,7 @@ class RayIterator:
         """
         Get the number of rays in the latest iteration.
         
-        Returns:
+        Returns:<br>
         int: Number of rays in the latest iteration.
         """
         return len(self.rays_collection[-1])
@@ -153,14 +158,14 @@ class RayIterator:
         Add another RayIterator or value to this RayIterator element-wise.
         
         Parameters:
-        - other (RayIterator or any): 
+        - other (RayIterator or any): <br>
             If RayIterator: combines ray collections from both iterators. 
             If other type: adds the value to each ray in all iterations.
         
-        Returns:
+        Returns:<br>
         RayIterator: New RayIterator containing the combined/adjusted results.
         
-        Raises:
+        Raises:<br>
         TypeError: If other is not a RayIterator and addition operation fails.
         """
         if isinstance(other, RayIterator):
@@ -204,7 +209,7 @@ class RayIterator:
         - other (RayIterator or any): 
             Object to add to this RayIterator.
         
-        Returns:
+        Returns:<br>
         RayIterator: self, after performing the in-place addition.
         """
         new_iterator = self.__add__(other) 
@@ -215,8 +220,8 @@ class RayIterator:
         """
         Get the total number of iterations/time-steps stored.
         
-        Returns:
-        int: 
+        Returns:<br>
+        int: <br>
             Number of iterations in the rays_collection.
         """
         return len(self.rays_collection)
@@ -229,7 +234,7 @@ class RayIterator:
         - rays (list): Collection of rays to add as a new iteration.
             Format: rays[ray][beam][point] = (x, y)
         
-        Returns:
+        Returns:<br>
         RayIterator: self, for method chaining.
         """
         self.rays_collection += [copy.deepcopy(rays)]
@@ -245,8 +250,9 @@ class RayIterator:
         - rays (list): Rays to add to the latest iteration.
             Format: rays[ray][beam][point] = (x, y)
         
-        Returns:
-        list: The updated rays_collection.
+        Returns:<br>
+        list: <br>
+        The updated rays_collection.
         """
         self.rays_collection = self.__add__(copy.deepcopy(rays)).rays_collection
         return self.rays_collection
@@ -263,7 +269,7 @@ class RayIterator:
             reflexions per ray, and points per beam
           * Value range for x and y coordinates
         
-        Returns:
+        Returns:<br>
         None
         """
         print(f"Ray Iterator with {self.len_iterations()} iterations (time-steps).")
@@ -281,10 +287,10 @@ class RayIterator:
         memory usage. If x_steps is greater than current iterations, does nothing.
         
         Parameters:
-        - x_steps (int): 
+        - x_steps (int): <br>
             Desired number of iterations to keep.
         
-        Returns:
+        Returns:<br>
         None
         """
         if x_steps >= self.len_iterations():
@@ -303,11 +309,11 @@ class RayIterator:
         Apply a function to each iteration's rays and update in-place.
         
         Parameters:
-        - func (callable): 
+        - func (callable): <br>
             Function that takes a rays collection and returns a modified rays collection. 
             Will be applied to each iteration.
         
-        Returns:
+        Returns:<br>
         None
         """
         for i in range(self.len_iterations()):
@@ -318,12 +324,12 @@ class RayIterator:
         Apply a function to each iteration's rays and return results.
         
         Parameters:
-        - func (callable): 
+        - func (callable): <br>
             Function that takes a rays collection and returns some result. 
             Will be applied to each iteration.
         
         Returns:
-        list: 
+        list: <br>
             Results of applying func to each iteration's rays.
         """
         results = []
@@ -337,14 +343,14 @@ class RayIterator:
         Get a specific iteration's rays collection.
         
         Parameters:
-        - index (int): 
+        - index (int): <br>
             Index of the iteration to retrieve. Supports negative indexing (e.g., -1 for last iteration).
         
         Returns:
-        list: 
-            Rays collection at the specified iteration.
+        list: <br>
+            - Rays collection at the specified iteration.
         
-        Raises: 
+        Raises: <br>
         IndexError: If index is out of range.
         """
         if index < -1 * self.len_iterations() or index >= self.len_iterations():
@@ -387,7 +393,7 @@ def print_rays_info(rays):
     - Value range for x and y coordinates
 
     Parameters:
-    - rays (list): 
+    - rays (list): <br>
         Nested list structure representing rays. Format: rays[ray][beam][point] = (x, y)
     """
     if isinstance(rays, RayIterator):
@@ -472,12 +478,12 @@ def save(path, rays):
     Each ray is delimited by '>' and '<', and each point is represented as "x | y".
 
     Parameters:
-    - path (str): 
+    - path (str): <br>
         Path to the file where data should be saved. If no '.txt' extension is present, it will be appended automatically.
-    - rays (list): 
+    - rays (list): <br>
         Nested list structure representing rays. Format: rays[ray][beam][point] = (x, y)
 
-    Returns:
+    Returns:<br>
         None
     """
     if isinstance(rays, RayIterator):
@@ -513,11 +519,11 @@ def open(path, is_iterator=False) -> list:
     The file is expected to follow the same format as produced by `save()`.
 
     Parameters:
-    - path (str): 
+    - path (str): <br>
         Path to the .txt file containing ray data.
 
     Returns:
-    - list: 
+    - list: <br>
         Nested list structure representing rays. Format: rays[ray][beam][point] = (x, y)
     """
     if is_iterator or path.endswith(".pkl"):
@@ -566,11 +572,11 @@ def merge(rays_1, rays_2, *other_rays_):
     Merge multiple ray datasets into a single list.
 
     Parameters:
-    - rays_1 (list): 
+    - rays_1 (list): <br>
         First set of rays.
-    - rays_2 (list): 
+    - rays_2 (list): <br>
         Second set of rays. 
-    - *other_rays_ (list): 
+    - *other_rays_ (list): <br>
         Additional ray lists to merge.
 
     Returns:
@@ -598,13 +604,13 @@ def get_all_pixel_coordinates_in_between(x1, y1, x2, y2):
     https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
 
     Parameters:
-    - x1 (int): 
+    - x1 (int): <br>
         Starting x-coordinate.
-    - y1 (int): 
+    - y1 (int): <br>
         Starting y-coordinate.
-    - x2 (int): 
+    - x2 (int): <br>
         Ending x-coordinate.
-    - y2 (int): 
+    - y2 (int): <br>
         Ending y-coordinate.
 
     Returns:
@@ -644,17 +650,20 @@ def get_all_pixel_coordinates_in_between(x1, y1, x2, y2):
 
 
 
-def get_wall_map(img, wall_values=None, thickness=1):
+def get_wall_map(img, wall_values=None, thickness=1,
+                 use_numba_compilation=False):
     """
     Generate a wall map where each pixel encodes the wall orientation (in degrees).
 
     Parameters:
-    - img (numpy.ndarray): 
+    - img (numpy.ndarray): <br>
         Input image representing scene or segmentation mask.
-    - wall_values (list, optional): 
+    - wall_values (list, optional): <br>
         Specific pixel values considered as walls. If None, all non-zero pixels are treated as walls.
-    - thickness (int, optional): 
+    - thickness (int, optional): <br>
         Thickness of wall lines (default is 1).
+    - use_numba_compilation (bool, optional):<br>
+        Whether to use the compiled (to machine code) version of compute heavy functions.
 
     Returns:
     - numpy.ndarray: 
@@ -662,6 +671,12 @@ def get_wall_map(img, wall_values=None, thickness=1):
         where each wall pixel contains the wall angle in degrees (0-360), 
         and non-wall pixels are set to infinity (np.inf).
     """
+    # numba optimization -> change function locally
+    if use_numba_compilation:
+        get_all_pixel_coordinates_in_between_ = get_all_pixel_coordinates_in_between_numba      
+    else:
+        get_all_pixel_coordinates_in_between_ = get_all_pixel_coordinates_in_between
+
     IMG_WIDTH, IMG_HEIGHT =  get_width_height(img)
     wall_map = np.full((IMG_HEIGHT, IMG_WIDTH), np.inf, dtype=np.uint16)  # uint16 to get at least 360 degree/value range
 
@@ -686,7 +701,7 @@ def get_wall_map(img, wall_values=None, thickness=1):
             dx = x2 - x1
             angle = math.atan2(dy, dx)
             angle_deg = math.degrees(angle)
-            for x, y in get_all_pixel_coordinates_in_between(x1, y1, x2, y2):
+            for x, y in get_all_pixel_coordinates_in_between_(x1, y1, x2, y2):
                 # wall_map[y, x] = int(angle_deg) % 360
 
                 for tx in range(-thickness, thickness+1):
@@ -706,11 +721,11 @@ def update_pixel_position(direction_in_degree, cur_position, target_line):
     on the target line, ensuring pixel-wise movement (discrete steps).
 
     Parameters:
-    - direction_in_degree (float): 
+    - direction_in_degree (float): <br>
         Movement direction in degrees.
-    - cur_position (tuple): 
+    - cur_position (tuple): <br>
         Current pixel position (x, y).
-    - target_line (list): 
+    - target_line (list): <br>
         Target line defined as [x1, y1, x2, y2].
 
     Returns:
@@ -731,7 +746,11 @@ def update_pixel_position(direction_in_degree, cur_position, target_line):
     # limit it to the line id needed -> because we don't want smaller or bigger values than that
     #   -> 0 would be point A
     #   -> 1 would be point B 
-    t = np.clip(t, 0, 1)
+    # t = np.clip(t, 0, 1)
+    if t < 0.0:
+        t = 0.0
+    elif t > 1.0:
+        t = 1.0
 
     # get closest point by applying the found t as lentgh from startpoint in the line vector direction
     closest = line_start_point + t * (line_end_point - line_start_point)
@@ -753,10 +772,18 @@ def update_pixel_position(direction_in_degree, cur_position, target_line):
     step_y = np.sign(combined[1])
     
     # clamp to [-1, 1], if bigger/smaller
-    step_x = int(np.clip(step_x, -1, 1))
-    step_y = int(np.clip(step_y, -1, 1))
+    # step_x = int(np.clip(step_x, -1, 1))
+    if step_x < 0.0:
+        step_x = 0.0
+    elif step_x > 1.0:
+        step_x = 1.0
+    # step_y = int(np.clip(step_y, -1, 1))
+    if step_y < 0.0:
+        step_y = 0.0
+    elif step_y > 1.0:
+        step_y = 1.0
     
-    return (cur_position[0] + step_x, cur_position[1] + step_y)
+    return (int(cur_position[0] + step_x), int(cur_position[1] + step_y))
 
 
 
@@ -768,9 +795,9 @@ def calc_reflection(collide_vector, wall_vector):
         r = v - 2 * (v · n) * n
 
     Parameters:
-    - collide_vector (array-like): 
+    - collide_vector (array-like): <br>
         Incoming vector (2D).
-    - wall_vector (array-like): 
+    - wall_vector (array-like): <br>
         Wall direction vector (2D).
 
     Returns:
@@ -778,9 +805,9 @@ def calc_reflection(collide_vector, wall_vector):
         Reflected 2D vector.
     """
     # normalize both
-    collide_vector = np.array(collide_vector, dtype=float)
+    collide_vector = np.array(collide_vector, dtype=np.float64)
     collide_vector /= np.linalg.norm(collide_vector)
-    wall_vector = np.array(wall_vector, dtype=float)
+    wall_vector = np.array(wall_vector, dtype=np.float64)
     wall_vector /= np.linalg.norm(wall_vector)
 
     # calculate the normal of the wall
@@ -804,26 +831,29 @@ def get_img_border_vector(position, max_width, max_height):
     Determine the wall normal vector for an image border collision.
 
     Parameters:
-    - position (tuple): 
+    - position (tuple): <br>
         Current position (x, y).
-    - max_width (int): 
+    - max_width (int): <br>
         Image width.
-    - max_height (int): 
+    - max_height (int): <br>
         Image height.
 
     Returns:
-    - list: 
+    - tuple: 
         Border wall vector corresponding to the collision side.
     """
     # print(f"got {position=}")
     if position[0] < 0:
-        return [0, 1]
+        return (0, 1)
     elif position[0] >= max_width:
-        return [0, 1]
+        return (0, 1)
     elif position[1] < 0:
-        return [1, 0]
+        return (1, 0)
     elif position[1] >= max_height:
-        return [1, 0]
+        return (1, 0)
+    else:
+        # should never reach that!
+        return (0, 0)
 
 
 def trace_beam(abs_position, 
@@ -834,7 +864,8 @@ def trace_beam(abs_position,
                img_border_also_collide=False,
                reflexion_order=3,
                should_scale=True,
-               should_return_iterative=False):
+               should_return_iterative=False,
+               use_numba_compilation=False):
     """
     Trace a ray (beam) through an image with walls and reflections.
 
@@ -842,30 +873,44 @@ def trace_beam(abs_position,
     a wall or border. On collisions, reflections are computed using wall normals.
 
     Parameters:
-    - abs_position (tuple): 
+    - abs_position (tuple): <br>
         Starting position (x, y) of the beam.
-    - img (numpy.ndarray): 
+    - img (numpy.ndarray): <br>
         Input image or segmentation map.
-    - direction_in_degree (float): 
+    - direction_in_degree (float): <br>
         Initial direction angle of the beam.
-    - wall_map (numpy.ndarray): 
+    - wall_map (numpy.ndarray): <br>
         Map containing wall orientations in degrees.
-    - wall_values (list): 
+    - wall_values (list): <br>
         List of pixel values representing walls.
-    - img_border_also_collide (bool, optional): 
+    - img_border_also_collide (bool, optional): <br>
         Whether the image border acts as a collider (default: False).
-    - reflexion_order (int, optional): 
+    - reflexion_order (int, optional): <br>
         Number of allowed reflections (default: 3).
-    - should_scale (bool, optional): 
+    - should_scale (bool, optional): <br>
         Whether to normalize positions to [0, 1] (default: True).
-    - should_return_iterative (bool, optional): 
+    - should_return_iterative (bool, optional): <br>
         Whether to return a RayIterator for step-by-step analysis (default: False).
+    - use_numba_compilation (bool, optional):<br>
+        Whether to use the compiled (to machine code) version of compute heavy functions.
 
     Returns:
     - list: 
         Nested list structure representing the traced ray and its reflections. 
         Format: ray[beam][point] = (x, y)
     """
+    # numba optimization -> change function locally
+    if use_numba_compilation:
+        calc_reflection_ = calc_reflection_numba
+        degree_to_vector_ = degree_to_vector_numba
+        vector_to_degree_ = vector_to_degree_numba
+        normalize_point_ = normalize_point_numba
+    else:
+        calc_reflection_ =  calc_reflection
+        degree_to_vector_ = degree_to_vector
+        vector_to_degree_ = vector_to_degree
+        normalize_point_ = normalize_point
+
     reflexion_order += 1  # Reflexion Order == 0 means, no reflections, therefore only 1 loop
     IMG_WIDTH, IMG_HEIGHT =  get_width_height(img)
 
@@ -878,7 +923,7 @@ def trace_beam(abs_position,
     for cur_depth in range(reflexion_order):
         # print(f"(Reflexion Order '{cur_depth}') {ray=}")
         if should_scale:
-            current_ray_line = [normalize_point(point=cur_target_abs_position, width=IMG_WIDTH, height=IMG_HEIGHT)]
+            current_ray_line = [normalize_point_(x=cur_target_abs_position[0], y=cur_target_abs_position[1], width=IMG_WIDTH, height=IMG_HEIGHT)]
         else:
             current_ray_line = [(cur_target_abs_position[0], cur_target_abs_position[1])]
         ray_iterator.add_iteration([copy.deepcopy(ray)+[current_ray_line]])
@@ -915,8 +960,8 @@ def trace_beam(abs_position,
                                                            max_height=IMG_HEIGHT)
 
                     # calc new direct vector
-                    new_direction = calc_reflection(collide_vector=degree_to_vector(cur_direction_in_degree), wall_vector=wall_vector)
-                    new_direction_in_degree = vector_to_degree(new_direction)
+                    new_direction = calc_reflection_(collide_vector=degree_to_vector_(cur_direction_in_degree), wall_vector=wall_vector)
+                    new_direction_in_degree = vector_to_degree_(new_direction[0], new_direction[1])
 
                     # start new beam calculation
                     cur_target_abs_position = last_abs_position
@@ -932,7 +977,7 @@ def trace_beam(abs_position,
             # check if hit building
             if float(next_pixel) in wall_values:
                 # if should_scale:
-                #     current_ray_line += [normalize_point(point=current_position, width=IMG_WIDTH, height=IMG_HEIGHT)]
+                #     current_ray_line += [normalize_point_(x=current_position[0], y=current_position[1], width=IMG_WIDTH, height=IMG_HEIGHT)]
                 # else:
                 #     current_ray_line += [(current_position[0], current_position[1])]
                 last_abs_position = (current_position[0], current_position[1])
@@ -944,11 +989,11 @@ def trace_beam(abs_position,
                 building_angle = wall_map[int(current_position[1]), int(current_position[0])]
                 if building_angle == np.inf:
                     raise Exception("Got inf value from Wall-Map.")
-                wall_vector = degree_to_vector(building_angle)
+                wall_vector = degree_to_vector_(building_angle)
 
                 # calc new direct vector
-                new_direction = calc_reflection(collide_vector=degree_to_vector(cur_direction_in_degree), wall_vector=wall_vector)
-                new_direction_in_degree = vector_to_degree(new_direction)
+                new_direction = calc_reflection_(collide_vector=degree_to_vector_(cur_direction_in_degree), wall_vector=wall_vector)
+                new_direction_in_degree = vector_to_degree_(new_direction[0], new_direction[1])
 
                 # start new beam calculation
                 cur_target_abs_position = last_abs_position
@@ -957,7 +1002,7 @@ def trace_beam(abs_position,
             else:
                 # update current ray
                 if should_scale:
-                    current_ray_line += [normalize_point(point=current_position, width=IMG_WIDTH, height=IMG_HEIGHT)]
+                    current_ray_line += [normalize_point_(x=current_position[0], y=current_position[1], width=IMG_WIDTH, height=IMG_HEIGHT)]
                 else:
                     current_ray_line += [(current_position[0], current_position[1])]
                 ray_iterator.add_iteration([copy.deepcopy(ray)+[current_ray_line]])
@@ -980,7 +1025,8 @@ def trace_beam_with_DDA(abs_position,
                img_border_also_collide=False,
                reflexion_order=3,
                should_scale=True,
-               should_return_iterative=False):
+               should_return_iterative=False,
+               use_numba_compilation=False):
     """
     Trace a ray (beam) through a 2D image using a DDA (Digital Differential Analyzer)
     algorithm with precise collision points and physically accurate reflections.
@@ -992,36 +1038,50 @@ def trace_beam_with_DDA(abs_position,
     Reflections are computed using wall normals derived from the `wall_map`.
 
     Parameters:
-    - abs_position (tuple of float): 
+    - abs_position (tuple of float): <br>
         Starting position (x, y) of the beam in absolute pixel space.
-    - img (numpy.ndarray): 
+    - img (numpy.ndarray): <br>
         2D array representing the scene. Pixel values listed in `wall_values`
         are treated as solid walls.
-    - direction_in_degree (float): 
+    - direction_in_degree (float): <br>
         Initial direction of the beam in degrees (0° = right, 90° = down).
-    - wall_map (numpy.ndarray): 
+    - wall_map (numpy.ndarray): <br>
         A map storing wall orientations in degrees for each pixel marked as a wall.
         These angles define the wall normals used for reflection.
-    - wall_values (list, tuple, set, float, optional): 
+    - wall_values (list, tuple, set, float, optional): <br>
         Pixel values identifying walls. Any pixel in this list causes a collision.
         If None, pixel value 0.0 is treated as a wall.
-    - img_border_also_collide (bool, optional): 
+    - img_border_also_collide (bool, optional): <br>
         If True, the image borders behave like reflective walls. If False,
         the ray terminates when leaving the image. Default: False.
-    - reflexion_order (int, optional): 
+    - reflexion_order (int, optional): <br>
         Maximum number of reflections. The ray can rebound this many times before
         the function terminates. Default: 3.
-    - should_scale (bool, optional): 
+    - should_scale (bool, optional): <br>
         If True, all emitted points (x, y) are normalized to [0, 1] range.
         Otherwise absolute pixel positions are returned. Default: True.
-    - should_return_iterative (bool, optional): 
+    - should_return_iterative (bool, optional): <br>
         Whether to return a RayIterator for step-by-step analysis (default: False).
+    - use_numba_compilation (bool, optional):<br>
+        Whether to use the compiled (to machine code) version of compute heavy functions.
 
     Returns:
     - list: 
         Nested list structure representing the traced ray and its reflections. 
         Format: ray[beam][point] = (x, y)
     """
+    # numba optimization -> change function locally
+    if use_numba_compilation:
+        calc_reflection_ = calc_reflection_numba
+        degree_to_vector_ = degree_to_vector_numba
+        vector_to_degree_ = vector_to_degree_numba
+        normalize_point_ = normalize_point_numba
+    else:
+        calc_reflection_ =  calc_reflection
+        degree_to_vector_ = degree_to_vector
+        vector_to_degree_ = vector_to_degree
+        normalize_point_ = normalize_point
+
     reflexion_order += 1
     IMG_WIDTH, IMG_HEIGHT = get_width_height(img)
 
@@ -1035,14 +1095,18 @@ def trace_beam_with_DDA(abs_position,
     if wall_values is None:
         wall_values_set = {0.0}
     elif isinstance(wall_values, (list, tuple, set)):
-        wall_values_set = set(float(v) for v in wall_values)
+        for idx, v in enumerate(wall_values):
+            if idx == 0:
+                wall_values_set = {float(v)}
+            else:
+                wall_values_set.add(float(v))
     else:
         wall_values_set = {float(wall_values)}
 
     # go through every reflection -> will early stop if hitting a wall (if wall-bouncing is deactivated)
     for cur_depth in range(reflexion_order):
         if should_scale:
-            current_ray_line = [normalize_point(point=cur_target_abs_position, width=IMG_WIDTH, height=IMG_HEIGHT)]
+            current_ray_line = [normalize_point_(x=cur_target_abs_position[0], y=cur_target_abs_position[1], width=IMG_WIDTH, height=IMG_HEIGHT)]
         else:
             current_ray_line = [(cur_target_abs_position[0], cur_target_abs_position[1])]
         ray_iterator.add_iteration([copy.deepcopy(ray)+[current_ray_line]])
@@ -1070,8 +1134,8 @@ def trace_beam_with_DDA(abs_position,
             # ray_iterator.add_iteration(ray)
             if img_border_also_collide:
                 wall_vector = get_img_border_vector(position=(x0, y0), max_width=IMG_WIDTH, max_height=IMG_HEIGHT)
-                new_direction = calc_reflection(collide_vector=degree_to_vector(cur_direction_in_degree), wall_vector=wall_vector)
-                cur_direction_in_degree = vector_to_degree(new_direction)
+                new_direction = calc_reflection_(collide_vector=degree_to_vector_(cur_direction_in_degree), wall_vector=wall_vector)
+                cur_direction_in_degree = vector_to_degree_(new_direction[0], new_direction[1])
                 cur_target_abs_position = last_abs_position
                 continue
             else:
@@ -1120,7 +1184,7 @@ def trace_beam_with_DDA(abs_position,
                 hit_x = x0
                 hit_y = y0
                 if should_scale:
-                    current_ray_line += [normalize_point(point=(hit_x, hit_y), width=IMG_WIDTH, height=IMG_HEIGHT)]
+                    current_ray_line += [normalize_point_(x=hit_x, y=hit_y, width=IMG_WIDTH, height=IMG_HEIGHT)]
                 else:
                     current_ray_line += [(hit_x, hit_y)]
                 ray_iterator.add_iteration([copy.deepcopy(ray)+[current_ray_line]])
@@ -1130,9 +1194,9 @@ def trace_beam_with_DDA(abs_position,
                 building_angle = float(wall_map[cell_y, cell_x])
                 if not np.isfinite(building_angle):
                     raise Exception("Got non-finite value from Wall-Map.")
-                wall_vector = degree_to_vector(building_angle)
-                new_direction = calc_reflection(collide_vector=degree_to_vector(cur_direction_in_degree), wall_vector=wall_vector)
-                cur_direction_in_degree = vector_to_degree(new_direction)
+                wall_vector = degree_to_vector_(building_angle)
+                new_direction = calc_reflection_(collide_vector=degree_to_vector_(cur_direction_in_degree), wall_vector=wall_vector)
+                cur_direction_in_degree = vector_to_degree_(new_direction[0], new_direction[1])
                 ndx, ndy = new_direction[0], new_direction[1]
                 cur_target_abs_position = (hit_x + ndx * 1e-3, hit_y + ndy * 1e-3)
                 continue
@@ -1147,13 +1211,11 @@ def trace_beam_with_DDA(abs_position,
                 # step in x
                 cell_x += stepX
                 tMaxX += tDeltaX
-                stepped_axis = 'x'
             else:
                 t_hit = tMaxY
                 # step in y
                 cell_y += stepY
                 tMaxY += tDeltaY
-                stepped_axis = 'y'
 
             # compute exact collision position along ray from origin (x0,y0)
             hit_x = x0 + dx * t_hit
@@ -1162,7 +1224,7 @@ def trace_beam_with_DDA(abs_position,
             # For recording the traversal we can append intermediate cell centers encountered so far.
             # But more importantly, append the collision point to the current segment BEFORE storing it.
             if should_scale:
-                current_ray_line += [normalize_point(point=(hit_x, hit_y), width=IMG_WIDTH, height=IMG_HEIGHT)]
+                current_ray_line += [normalize_point_(x=hit_x, y=hit_y, width=IMG_WIDTH, height=IMG_HEIGHT)]
             else:
                 current_ray_line += [(hit_x, hit_y)]
             ray_iterator.add_iteration([copy.deepcopy(ray)+[current_ray_line]])
@@ -1175,8 +1237,8 @@ def trace_beam_with_DDA(abs_position,
 
                 if img_border_also_collide:
                     wall_vector = get_img_border_vector(position=(cell_x, cell_y), max_width=IMG_WIDTH, max_height=IMG_HEIGHT)
-                    new_direction = calc_reflection(collide_vector=degree_to_vector(cur_direction_in_degree), wall_vector=wall_vector)
-                    new_direction_in_degree = vector_to_degree(new_direction)
+                    new_direction = calc_reflection_(collide_vector=degree_to_vector_(cur_direction_in_degree), wall_vector=wall_vector)
+                    new_direction_in_degree = vector_to_degree_(new_direction[0], new_direction[1])
                     # start next ray from last in-image position (hit_x, hit_y) nudged slightly
                     ndx, ndy = new_direction[0], new_direction[1]
                     cur_target_abs_position = (hit_x + ndx * 1e-3, hit_y + ndy * 1e-3)
@@ -1199,10 +1261,10 @@ def trace_beam_with_DDA(abs_position,
                 building_angle = float(wall_map[cell_y, cell_x])
                 if not np.isfinite(building_angle):
                     raise Exception("Got non-finite value from Wall-Map.")
-                wall_vector = degree_to_vector(building_angle)
+                wall_vector = degree_to_vector_(building_angle)
 
-                new_direction = calc_reflection(collide_vector=degree_to_vector(cur_direction_in_degree), wall_vector=wall_vector)
-                new_direction_in_degree = vector_to_degree(new_direction)
+                new_direction = calc_reflection_(collide_vector=degree_to_vector_(cur_direction_in_degree), wall_vector=wall_vector)
+                new_direction_in_degree = vector_to_degree_(new_direction[0], new_direction[1])
 
                 # start next beam from collision point nudged outwards
                 ndx, ndy = new_direction[0], new_direction[1]
@@ -1217,7 +1279,7 @@ def trace_beam_with_DDA(abs_position,
 
         # end DDA loop
         if not last_position_saved:
-            ray += [current_ray_line]
+            ray.append(current_ray_line)
             # ray_iterator.add_iteration(ray)
 
     if should_return_iterative:
@@ -1238,7 +1300,8 @@ def trace_beams(rel_position,
                 use_dda=True,
                 iterative_tracking=False,
                 iterative_steps=None,
-                parallelization=0):
+                parallelization=0,
+                use_numba_compilation=False):
     """
     Trace multiple rays (beams) from a single position through an image with walls and reflections.
 
@@ -1247,33 +1310,35 @@ def trace_beams(rel_position,
     computed based on local wall normals extracted from the image.
 
     Parameters:
-    - rel_position (tuple): 
+    - rel_position (tuple): <br>
         Relative starting position (x, y) in normalized coordinates [0-1].
-    - img_src (str or numpy.ndarray): 
+    - img_src (str or numpy.ndarray): <br>
         Input image (array or file path) used for wall detection.
-    - directions_in_degree (list): 
+    - directions_in_degree (list): <br>
         List of beam direction angles (in degrees).
-    - wall_values (list or float or None): 
+    - wall_values (list or float or None): <br>
         Pixel values representing walls or obstacles.
-    - wall_thickness (int, optional): 
+    - wall_thickness (int, optional): <br>
         Thickness (in pixels) of detected walls (default: 0).
-    - img_border_also_collide (bool, optional): 
+    - img_border_also_collide (bool, optional): <br>
         Whether image borders act as colliders (default: False).
-    - reflexion_order (int, optional): 
+    - reflexion_order (int, optional): <br>
         Number of allowed reflections per beam (default: 3).
-    - should_scale_rays (bool, optional): 
+    - should_scale_rays (bool, optional): <br>
         Whether to normalize ray coordinates to [0, 1] (default: True).
-    - should_scale_img (bool, optional): 
+    - should_scale_img (bool, optional): <br>
         Whether to scale the input image before wall detection (default: True).
-    - use_dda (bool, optional): 
+    - use_dda (bool, optional): <br>
         Whether to use the DDA-based ray tracing method (default: True).
     - iterative_tracking (bool, optional): 
         Whether to return a RayIterator for step-by-step analysis (default: False).
-    - iterative_steps (int, optional):
+    - iterative_steps (int, optional):<br>
         Number of steps for iterative reduction if using iterative tracking. `None` for all steps.
+    - use_numba_compilation (bool, optional):<br>
+        Whether to use the compiled (to machine code) version of compute heavy functions.
 
     Returns:
-    - list: 
+    - list: <br>
         Nested list of traced beams and their reflection segments. 
         Format: rays[beam][segment][point] = (x, y)
     """ 
@@ -1288,31 +1353,40 @@ def trace_beams(rel_position,
         wall_values = [wall_values]
     wall_map = get_wall_map(img=img, 
                             wall_values=wall_values, 
-                            thickness=wall_thickness)
+                            thickness=wall_thickness,
+                            use_numba_compilation=use_numba_compilation)
     
     if wall_values is None:
         wall_values = [0.0]
 
     # create function plan
     ray_planning = []
+
     for direction_in_degree in directions_in_degree:
         if use_dda:
-            ray_tracing_func = trace_beam_with_DDA
+            if use_numba_compilation:
+                ray_tracing_func = trace_beam_with_DDA_numba
+            else:
+                ray_tracing_func = trace_beam_with_DDA
         else:
-            ray_tracing_func = trace_beam
+            if use_numba_compilation:
+                ray_tracing_func = trace_beam_numba
+            else:
+                ray_tracing_func = trace_beam
 
-        ray_planning += [lambda dir=direction_in_degree: ray_tracing_func(
+        ray_planning.append(lambda dir=direction_in_degree: ray_tracing_func(
                                         abs_position=abs_position, 
                                         img=img,  
                                         direction_in_degree=dir,
                                         wall_map=wall_map,
-                                        wall_values=wall_values,
+                                        wall_values=np.array(wall_values, dtype=np.float64) if (use_numba_compilation and use_dda) else wall_values,
                                         img_border_also_collide=img_border_also_collide, 
                                         reflexion_order=reflexion_order,
                                         should_scale=should_scale_rays,
-                                        should_return_iterative=iterative_tracking
+                                        should_return_iterative=iterative_tracking,
+                                        use_numba_compilation=use_numba_compilation
                                     )
-                        ]
+        )
         
     if iterative_tracking:
         rays = RayIterator()
@@ -1321,28 +1395,34 @@ def trace_beams(rel_position,
 
     # compute
     if parallelization == 0:
-        
-        
+
         for cur_ray_planning in ray_planning:
             cur_ray_result = cur_ray_planning()
+            if use_numba_compilation:
+                cur_ray_result = numba_to_py(cur_ray_result)
         
             if iterative_tracking:
                 rays.add_rays(cur_ray_result)
             else:
-                rays += [cur_ray_result]
+                rays.append(cur_ray_result)
     else:
         result_rays = Parallel(n_jobs=parallelization, 
-                                backend="loky",     # process-based
-                                prefer="processes",
+                                backend="threading" if use_numba_compilation else "loky",     # process-based
+                                prefer="threads" if use_numba_compilation else "processes",
+                                return_as="generator",
                                 batch_size=1        # because of unequal ray lengths
                                 )(
                                     delayed(ray_func)() for ray_func in ray_planning
                                 )
+        
         for cur_ray_result in result_rays:
+            if use_numba_compilation:
+                cur_ray_result = numba_to_py(cur_ray_result)
+
             if iterative_tracking:
                 rays.add_rays(cur_ray_result)
             else:
-                rays += [cur_ray_result] 
+                rays.append(cur_ray_result)
 
     if iterative_tracking and iterative_steps is not None:
         rays.reduce_rays_iteratively(steps=iterative_steps)
@@ -1362,21 +1442,21 @@ def scale_rays(rays,
     Can scale all points or just the start/end points of each beam.
 
     Parameters:
-    - rays (list): 
+    - rays (list): <br>
         Nested list of rays in the format rays[ray][beam][point] = (x, y).
-    - max_x (float, optional): 
+    - max_x (float, optional): <br>
         Original maximum x-value for normalization.
-    - max_y (float, optional): 
+    - max_y (float, optional): <br>
         Original maximum y-value for normalization.
-    - new_max_x (float, optional): 
+    - new_max_x (float, optional): <br>
         New maximum x-value after rescaling.
-    - new_max_y (float, optional): 
+    - new_max_y (float, optional): <br>
         New maximum y-value after rescaling.
-    - detailed_scaling (bool, optional): 
+    - detailed_scaling (bool, optional): <br>
         If True, scale every point in a beam; otherwise, only endpoints (default: True).
 
     Returns:
-    - list: 
+    - list: <br>
         Scaled rays in the same nested format.
     """
     if isinstance(rays, RayIterator):
@@ -1412,8 +1492,8 @@ def scale_rays(rays,
 
                 new_beams[idx] = (x1, y1)
 
-            scaled_ray += [new_beams]
-        scaled_rays += [scaled_ray]
+            scaled_ray.append(new_beams)
+        scaled_rays.append(scaled_ray)
     return scaled_rays
 
 
@@ -1426,15 +1506,15 @@ def draw_rectangle_with_thickness(img, start_point, end_point, value, thickness=
     clips coordinates to image bounds to avoid overflow.
 
     Parameters:
-    - img (numpy.ndarray): 
+    - img (numpy.ndarray): <br>
         Image array to draw on.
-    - start_point (tuple): 
+    - start_point (tuple): <br>
         Top-left corner of the rectangle (x, y).
-    - end_point (tuple): 
+    - end_point (tuple): <br>
         Bottom-right corner of the rectangle (x, y).
-    - value (int or float): 
+    - value (int or float): <br>
         Fill value or color intensity.
-    - thickness (int, optional): 
+    - thickness (int, optional): <br>
         Rectangle border thickness; 
         if <= 0, the rectangle is filled (default: 1).
     """
@@ -1464,15 +1544,15 @@ def draw_line_or_point(img, start_point, end_point, fill_value, thickness):
     end coordinates are identical.
 
     Parameters:
-    - img (numpy.ndarray): 
+    - img (numpy.ndarray): <br>
         Image array to draw on.
-    - start_point (tuple): 
+    - start_point (tuple): <br>
         Starting pixel coordinate (x, y).
-    - end_point (tuple): 
+    - end_point (tuple): <br>
         Ending pixel coordinate (x, y).
-    - fill_value (int or float): 
+    - fill_value (int or float): <br>
         Value or color used for drawing.
-    - thickness (int): 
+    - thickness (int): <br>
         Thickness of the line or point.
     """
     draw_point = (start_point == end_point)
@@ -1496,35 +1576,35 @@ def draw_rays(rays, detail_draw=True,
     single image, multiple images, or separate channels.
 
     Parameters:
-    - rays (list): 
+    - rays (list): <br>
         Nested list of rays in the format rays[ray][beam][point] = (x, y).
-    - detail_draw (bool, optional): 
+    - detail_draw (bool, optional): <br>
         Whether to draw every point or just beam endpoints (default: True).
-    - output_format (str, optional): 
+    - output_format (str, optional): <br>
         Output mode: "single_image", "multiple_images", or "channels" (default: "single_image").
-    - img_background (numpy.ndarray, optional): 
+    - img_background (numpy.ndarray, optional): <br>
         Background image; if None, a blank image is created.
-    - ray_value (int, float, list, or numpy.ndarray, optional): 
+    - ray_value (int, float, list, or numpy.ndarray, optional): <br>
         Pixel intensity or color per reflection (default: 255).
-    - ray_thickness (int, optional): 
+    - ray_thickness (int, optional): <br>
         Thickness of the drawn lines or points (default: 1).
-    - img_shape (tuple, optional): 
+    - img_shape (tuple, optional): <br>
         Shape of the generated image if no background is given (default: (256, 256)).
-    - dtype (type, optional): 
+    - dtype (type, optional): <br>
         Data type for the output image (default: float).
-    - standard_value (int or float, optional): 
+    - standard_value (int or float, optional): <br>
         Background fill value (default: 0).
-    - should_scale_rays_to_image (bool, optional): 
+    - should_scale_rays_to_image (bool, optional): <br>
         Whether to scale ray coordinates to match the image (default: True).
-    - original_max_width (float, optional): 
+    - original_max_width (float, optional): <br>
         Original image width before scaling.
-    - original_max_height (float, optional): 
+    - original_max_height (float, optional): <br>
         Original image height before scaling.
-    - show_only_reflections (bool, optional): 
+    - show_only_reflections (bool, optional): <br>
         If True, draws only reflected beams (default: False).
 
     Returns:
-        numpy.ndarray or list:
+        numpy.ndarray or list: <br>
             - Single image if output_format == "single_image" or "channels".
             - List of images if output_format == "multiple_images".
     """
@@ -1564,16 +1644,6 @@ def draw_rays(rays, detail_draw=True,
     elif output_format == "multiple_images":
         imgs = [np.copy(img) for _ in range(nrays)]
 
-    # only reflections
-    # if show_only_reflections:
-    #     new_rays = []
-    #     for ray in rays:
-    #         if len(ray) <= 1:
-    #             continue
-
-    #         new_rays += [ray[1:]]
-    #     rays = new_rays
-
     # draw on image
     for idx, ray in enumerate(rays):
         for reflexion_order, beam_points in enumerate(ray):
@@ -1585,7 +1655,7 @@ def draw_rays(rays, detail_draw=True,
                     end_point = tuple(map(lambda x:int(x), beam_points[cur_point]))
                     # end_point = tuple(map(lambda x:int(x), beam_points[cur_point+1]))
                     # -> if as small lines then in range: range(0, len(beam_points)-1)
-                    lines += [(start_point, end_point, reflexion_order)]
+                    lines.append((start_point, end_point, reflexion_order))
             else:
                 start_point = tuple(map(lambda x:int(x), beam_points[0]))
                 end_point = tuple(map(lambda x:int(x), beam_points[-1]))
@@ -1621,20 +1691,726 @@ def draw_rays(rays, detail_draw=True,
 
 
 
+def trace_and_draw_rays(rel_position, 
+                        img_src,
+                        directions_in_degree, 
+                        wall_values, 
+                        wall_thickness=0,
+                        img_border_also_collide=False,
+                        reflexion_order=3,
+                        should_scale_rays=True,
+                        should_scale_img=True,
+                        use_dda=True,
+                        iterative_tracking=False,
+                        iterative_steps=None,
+                        parallelization=0,
+                        use_numba_compilation=False,
+                        detail_draw=True,
+                        output_format="single_image", # single_image, multiple_images, channels 
+                        img_background=None, 
+                        ray_value=255, 
+                        ray_thickness=1, 
+                        img_shape=(256, 256), 
+                        dtype=float, 
+                        standard_value=0,
+                        should_scale_rays_to_image=True, 
+                        original_max_width=None, 
+                        original_max_height=None,
+                        show_only_reflections=False):
+    """
+    Trace multiple rays (beams) from a single position through an image with walls and reflections AND 
+    render rays onto an image or a set of images.
 
-# def trace_and_draw_rays(rel_position, img_src, directions_in_degree,
-#              rays, individual_ray_outpout=False, as_channels=True, 
-#              img_background=None, ray_value=255, ray_thickness=1, 
-#              img_shape=(256, 256), dtype=float, standard_value=0,
-#              should_scale_rays_to_image=True):
-#     rays = trace_beams(rel_position=rel_position, img_src=img_src, directions_in_degree=directions_in_degree)
+    Calls internally `trace_beams` and then `draw_rays`.
 
-#     img = draw_rays(rays, individual_ray_outpout=individual_ray_outpout, as_channels=as_channels, 
-#                     img_background=img_background, ray_value=ray_value, ray_thickness=ray_thickness, 
-#                     img_shape=img_shape, dtype=dtype, standard_value=standard_value,
-#                     should_scale_rays_to_image=should_scale_rays_to_image)
+    Parameters:
+    - rel_position (tuple): <br>
+        Relative starting position (x, y) in normalized coordinates [0-1].
+    - img_src (str or numpy.ndarray): <br>
+        Input image (array or file path) used for wall detection.
+    - directions_in_degree (list): <br>
+        List of beam direction angles (in degrees).
+    - wall_values (list or float or None): <br>
+        Pixel values representing walls or obstacles.
+    - wall_thickness (int, optional): <br>
+        Thickness (in pixels) of detected walls (default: 0).
+    - img_border_also_collide (bool, optional): <br>
+        Whether image borders act as colliders (default: False).
+    - reflexion_order (int, optional): <br>
+        Number of allowed reflections per beam (default: 3).
+    - should_scale_rays (bool, optional): <br>
+        Whether to normalize ray coordinates to [0, 1] (default: True).
+    - should_scale_img (bool, optional): <br>
+        Whether to scale the input image before wall detection (default: True).
+    - use_dda (bool, optional): <br>
+        Whether to use the DDA-based ray tracing method (default: True).
+    - iterative_tracking (bool, optional): 
+        Whether to return a RayIterator for step-by-step analysis (default: False).
+    - iterative_steps (int, optional):<br>
+        Number of steps for iterative reduction if using iterative tracking. `None` for all steps.
+    - use_numba_compilation (bool, optional):<br>
+        Whether to use the compiled (to machine code) version of compute heavy functions.
+    - rays (list): <br>
+        Nested list of rays in the format rays[ray][beam][point] = (x, y).
+    - detail_draw (bool, optional): <br>
+        Whether to draw every point or just beam endpoints (default: True).
+    - output_format (str, optional): <br>
+        Output mode: "single_image", "multiple_images", or "channels" (default: "single_image").
+    - img_background (numpy.ndarray, optional): <br>
+        Background image; if None, a blank image is created.
+    - ray_value (int, float, list, or numpy.ndarray, optional): <br>
+        Pixel intensity or color per reflection (default: 255).
+    - ray_thickness (int, optional): <br>
+        Thickness of the drawn lines or points (default: 1).
+    - img_shape (tuple, optional): <br>
+        Shape of the generated image if no background is given (default: (256, 256)).
+    - dtype (type, optional): <br>
+        Data type for the output image (default: float).
+    - standard_value (int or float, optional): <br>
+        Background fill value (default: 0).
+    - should_scale_rays_to_image (bool, optional): <br>
+        Whether to scale ray coordinates to match the image (default: True).
+    - original_max_width (float, optional): <br>
+        Original image width before scaling.
+    - original_max_height (float, optional): <br>
+        Original image height before scaling.
+    - show_only_reflections (bool, optional): <br>
+        If True, draws only reflected beams (default: False).
+
+    Returns:
+        numpy.ndarray or list:
+            - Single image if output_format == "single_image" or "channels".
+            - List of images if output_format == "multiple_images".
+    """
+    rays = trace_beams(rel_position, 
+                        img_src,
+                        directions_in_degree, 
+                        wall_values, 
+                        wall_thickness=wall_thickness,
+                        img_border_also_collide=img_border_also_collide,
+                        reflexion_order=reflexion_order,
+                        should_scale_rays=should_scale_rays,
+                        should_scale_img=should_scale_img,
+                        use_dda=use_dda,
+                        iterative_tracking=iterative_tracking,
+                        iterative_steps=iterative_steps,
+                        parallelization=parallelization,
+                        use_numba_compilation=use_numba_compilation)
     
-#     return img
+    return draw_rays(rays, 
+                     detail_draw=detail_draw,
+                     output_format=output_format,
+                     img_background=img_background, 
+                     ray_value=ray_value, 
+                     ray_thickness=ray_thickness, 
+                     img_shape=img_shape, 
+                     dtype=dtype, 
+                     standard_value=standard_value,
+                     should_scale_rays_to_image=should_scale_rays_to_image, 
+                     original_max_width=original_max_width, 
+                     original_max_height=original_max_height,
+                     show_only_reflections=show_only_reflections)
+
+
+# --------------------------------
+# >>> Numba Optimized Versions <<<
+# --------------------------------
+def numba_to_py(obj):
+    """
+    Converts numba.typed.List (possibly nested -> rays) to plain Python lists/tuples.
+    """
+    if isinstance(obj, List):
+        return [numba_to_py(x) for x in obj]
+
+    
+    if isinstance(obj, tuple):
+        return tuple(numba_to_py(x) for x in obj)
+
+    return obj
+
+
+TYPE_POINT_INT = types.UniTuple(types.int64, 2)
+TYPE_POINT_FLOAT = types.UniTuple(types.float64, 2)
+TYPE_LINE = types.ListType(TYPE_POINT_FLOAT)
+
+# trace_beam_numba = numba.njit(cache=True, fastmath=True)(trace_beam)
+# trace_beam_with_DDA_numba = numba.njit(cache=True, fastmath=True)(trace_beam_with_DDA)
+calc_reflection_numba = numba.njit(cache=True, fastmath=True)(calc_reflection)
+# get_all_pixel_coordinates_in_between_numba = numba.njit(cache=True, fastmath=True)(get_all_pixel_coordinates_in_between)
+get_img_border_vector_numba = numba.njit(cache=True, fastmath=True)(get_img_border_vector)
+# update_pixel_position_numba = numba.njit(cache=True, fastmath=True)(update_pixel_position)
+
+
+
+@numba.njit(cache=True, fastmath=True)
+def update_pixel_position_numba(direction_in_degree, cur_position, target_line):
+    # cur_position: (x,y) tuple
+    # target_line: array[4] => [x1,y1,x2,y2]
+    px = cur_position[0]
+    py = cur_position[1]
+
+    ax = target_line[0]
+    ay = target_line[1]
+    bx = target_line[2]
+    by = target_line[3]
+
+    # Directionvector of the line
+    vx = bx - ax
+    vy = by - ay
+
+    # Projection: t = dot(P-A, V) / dot(V,V)
+    wx = px - ax
+    wy = py - ay
+
+    denom = vx*vx + vy*vy
+    if denom == 0.0:
+        # Degenerated Linie: just no movement
+        return (px, py)
+
+    t = (wx*vx + wy*vy) / denom
+
+    # clip scalar (Numba-safe)
+    if t < 0.0:
+        t = 0.0
+    elif t > 1.0:
+        t = 1.0
+
+    # Point on the line
+    lx = ax + t * vx
+    ly = ay + t * vy
+
+    # Now make a step in direction_in_degree
+    rad = math.radians(direction_in_degree)
+    dx = math.cos(rad)
+    dy = math.sin(rad)
+
+    nx = lx + dx
+    ny = ly + dy
+
+    return (nx, ny)
+
+
+
+@numba.njit(cache=True, fastmath=True)
+def _is_in_wall_values(pixel_value, wall_values):
+    # Numba-save Membership-Check -> works with np.ndarray or numba List
+    for i in range(len(wall_values)):
+        if pixel_value == wall_values[i]:
+            return True
+    return False
+
+
+
+@numba.njit(cache=True, fastmath=True)
+def _compute_target_line_outside(x0, y0, dx, dy, w, h):
+    # w, h als float
+    # Candidats: Intersection with vertical/horizontal borders
+    # Taking the smallest t and continue going 0.01
+    INF = 1e30
+
+    # X-Border
+    if dx > 0.0:
+        tx = (w - x0) / dx
+    elif dx < 0.0:
+        tx = (0.0 - x0) / dx
+    else:
+        tx = INF
+
+    # Y-Border
+    if dy > 0.0:
+        ty = (h - y0) / dy
+    elif dy < 0.0:
+        ty = (0.0 - y0) / dy
+    else:
+        ty = INF
+
+    # t have to be positive
+    if tx <= 0.0:
+        tx = INF
+    if ty <= 0.0:
+        ty = INF
+
+    t_hit = tx if tx < ty else ty
+    if t_hit == INF:
+        # Direction is 0-vector (should not happen)
+        t_hit = 0.0
+
+    # the end point should be stay outside of the building/wall
+    t_out = t_hit + 0.01
+
+    x2 = x0 + t_out * dx
+    y2 = y0 + t_out * dy
+
+    return x0, y0, x2, y2
+
+
+
+@numba.njit(cache=True, fastmath=True)
+def trace_beam_numba(abs_position,
+                     img,
+                     direction_in_degree,
+                     wall_map,
+                     wall_values,
+                     img_border_also_collide=False,
+                     reflexion_order=3,
+                     should_scale=True,
+                     should_return_iterative=False,
+                     use_numba_compilation=False):
+    """
+    Trace a ray (beam) through an image with walls and reflections.
+
+    The beam starts from a given position and follows a direction until it hits
+    a wall or border. On collisions, reflections are computed using wall normals.
+
+    Parameters:
+    - abs_position (tuple): <br>
+        Starting position (x, y) of the beam.
+    - img (numpy.ndarray): <br>
+        Input image or segmentation map.
+    - direction_in_degree (float): <br>
+        Initial direction angle of the beam.
+    - wall_map (numpy.ndarray): <br>
+        Map containing wall orientations in degrees.
+    - wall_values (list): <br>
+        List of pixel values representing walls.
+    - img_border_also_collide (bool, optional): <br>
+        Whether the image border acts as a collider (default: False).
+    - reflexion_order (int, optional): <br>
+        Number of allowed reflections (default: 3).
+    - should_scale (bool, optional): <br>
+        Whether to normalize positions to [0, 1] (default: True).
+    - should_return_iterative (bool, optional): <br>
+        Whether to return a RayIterator for step-by-step analysis (default: False).
+    - use_numba_compilation (bool, optional):<br>
+        Whether to use the compiled (to machine code) version of compute heavy functions.
+
+    Returns:
+    - list: 
+        Nested list structure representing the traced ray and its reflections. 
+        Format: ray[beam][point] = (x, y)
+    """
+    calc_reflection_ = calc_reflection_numba
+    degree_to_vector_ = degree_to_vector_numba
+    vector_to_degree_ = vector_to_degree_numba
+    normalize_point_ = normalize_point_numba
+
+    if should_return_iterative:
+        print("[WARNING] Numba Version can't return a iterative version.")
+
+    reflexion_order += 1
+    IMG_HEIGHT = img.shape[0]
+    IMG_WIDTH  = img.shape[1]
+
+    ray = List.empty_list(TYPE_LINE)
+
+    cur_target_abs_position = (float(abs_position[0]), float(abs_position[1]))
+    cur_direction_in_degree = float(direction_in_degree % 360.0)
+
+    w_f = float(IMG_WIDTH)
+    h_f = float(IMG_HEIGHT)
+
+    inf_val = np.inf
+
+    for _ in range(reflexion_order):
+        # current_ray_line als typed list
+        current_ray_line = List.empty_list(TYPE_POINT_FLOAT)
+
+        if should_scale:
+            p = normalize_point_(x=cur_target_abs_position[0],
+                                 y=cur_target_abs_position[1],
+                                 width=IMG_WIDTH,
+                                 height=IMG_HEIGHT)
+            current_ray_line.append((float(p[0]), float(p[1])))
+        else:
+            current_ray_line.append((cur_target_abs_position[0], cur_target_abs_position[1]))
+
+        last_abs_position = cur_target_abs_position
+
+        # Direction -> dx,dy
+        rad = math.radians(cur_direction_in_degree)
+        dx = math.cos(rad)
+        dy = math.sin(rad)
+
+        # target_line
+        x1, y1, x2, y2 = _compute_target_line_outside(cur_target_abs_position[0],
+                                                      cur_target_abs_position[1],
+                                                      dx, dy, w_f, h_f)
+        # build target line -> start and end point
+        target_line = np.empty(4, dtype=np.float64)
+        target_line[0] = x1
+        target_line[1] = y1
+        target_line[2] = x2
+        target_line[3] = y2
+
+        current_position = cur_target_abs_position
+
+        while True:
+            current_position = update_pixel_position_numba(
+                direction_in_degree=cur_direction_in_degree,
+                cur_position=current_position,
+                target_line=target_line
+            )
+
+            x = current_position[0]
+            y = current_position[1]
+
+            # Border check
+            if not (0.0 <= x < w_f and 0.0 <= y < h_f):
+                ray.append(current_ray_line)
+
+                if img_border_also_collide:
+                    wall_vector = get_img_border_vector_numba(
+                        position=current_position,
+                        max_width=IMG_WIDTH,
+                        max_height=IMG_HEIGHT
+                    )
+                    new_direction = calc_reflection_(
+                        collide_vector=degree_to_vector_(cur_direction_in_degree),
+                        wall_vector=wall_vector
+                    )
+                    new_direction_in_degree = vector_to_degree_(new_direction[0], new_direction[1])
+
+                    cur_target_abs_position = last_abs_position
+                    cur_direction_in_degree = float(new_direction_in_degree)
+                    break
+                else:
+                    return ray
+
+            ix = int(x)
+            iy = int(y)
+
+            next_pixel = float(img[iy, ix])
+
+            # Wall check (Numba-save)
+            if _is_in_wall_values(next_pixel, wall_values):
+                last_abs_position = (x, y)
+                ray.append(current_ray_line)
+
+                building_angle = wall_map[iy, ix]
+                if building_angle == inf_val:
+                    raise Exception("Got inf value from Wall-Map.")
+
+                wall_vector = degree_to_vector_(building_angle)
+
+                new_direction = calc_reflection_(
+                    collide_vector=degree_to_vector_(cur_direction_in_degree),
+                    wall_vector=wall_vector
+                )
+                new_direction_in_degree = vector_to_degree_(new_direction[0], new_direction[1])
+
+                cur_target_abs_position = last_abs_position
+                cur_direction_in_degree = float(new_direction_in_degree)
+                break
+            else:
+                if should_scale:
+                    p = normalize_point_(x=x, y=y, width=IMG_WIDTH, height=IMG_HEIGHT)
+                    current_ray_line.append((float(p[0]), float(p[1])))
+                else:
+                    current_ray_line.append((x, y))
+                last_abs_position = (x, y)
+
+    return ray
+
+
+
+@numba.njit(cache=True, fastmath=True)
+def trace_beam_with_DDA_numba(abs_position, 
+                                img, 
+                                direction_in_degree, 
+                                wall_map,
+                                wall_values, 
+                                img_border_also_collide=False,
+                                reflexion_order=3,
+                                should_scale=True,
+                                should_return_iterative=False,
+                                use_numba_compilation=False):
+    """
+    Trace a ray (beam) through a 2D image using a DDA (Digital Differential Analyzer)
+    algorithm with precise collision points and physically accurate reflections.
+
+    The beam starts at a given floating-point position and marches through the grid
+    until it intersects a wall or exits the image. For each collision, the exact
+    hit position is computed using the ray Parameters t_hit, ensuring that reflected
+    segments contain meaningful geometry rather than single-point artifacts.
+    Reflections are computed using wall normals derived from the `wall_map`.
+
+    Parameters:
+    - abs_position (tuple of float): <br>
+        Starting position (x, y) of the beam in absolute pixel space.
+    - img (numpy.ndarray): <br>
+        2D array representing the scene. Pixel values listed in `wall_values`
+        are treated as solid walls.
+    - direction_in_degree (float): <br>
+        Initial direction of the beam in degrees (0° = right, 90° = down).
+    - wall_map (numpy.ndarray): <br>
+        A map storing wall orientations in degrees for each pixel marked as a wall.
+        These angles define the wall normals used for reflection.
+    - wall_values (list, tuple, set, float, optional): <br>
+        Pixel values identifying walls. Any pixel in this list causes a collision.
+        If None, pixel value 0.0 is treated as a wall.
+    - img_border_also_collide (bool, optional): <br>
+        If True, the image borders behave like reflective walls. If False,
+        the ray terminates when leaving the image. Default: False.
+    - reflexion_order (int, optional): <br>
+        Maximum number of reflections. The ray can rebound this many times before
+        the function terminates. Default: 3.
+    - should_scale (bool, optional): <br>
+        If True, all emitted points (x, y) are normalized to [0, 1] range.
+        Otherwise absolute pixel positions are returned. Default: True.
+    - should_return_iterative (bool, optional): <br>
+        Whether to return a RayIterator for step-by-step analysis (default: False).
+    - use_numba_compilation (bool, optional):<br>
+        Whether to use the compiled (to machine code) version of compute heavy functions.
+
+    Returns:
+    - list: 
+        Nested list structure representing the traced ray and its reflections. 
+        Format: ray[beam][point] = (x, y)
+    """
+    # numba optimization -> change function locally
+    calc_reflection_ = calc_reflection_numba
+    degree_to_vector_ = degree_to_vector_numba
+    vector_to_degree_ = vector_to_degree_numba
+    normalize_point_ = normalize_point_numba
+
+    if should_return_iterative:
+        print("[WARNING] Numba Version can't return a iterative version.")
+
+    reflexion_order += 1
+    # IMG_WIDTH, IMG_HEIGHT = get_width_height(img)
+    IMG_HEIGHT = img.shape[0]
+    IMG_WIDTH  = img.shape[1]
+
+    ray = []
+
+    cur_target_abs_position = (float(abs_position[0]), float(abs_position[1]))
+    cur_direction_in_degree = direction_in_degree % 360
+
+    # go through every reflection -> will early stop if hitting a wall (if wall-bouncing is deactivated)
+    for cur_depth in range(reflexion_order):
+        if should_scale:
+            current_ray_line = [normalize_point_(x=cur_target_abs_position[0], y=cur_target_abs_position[1], width=IMG_WIDTH, height=IMG_HEIGHT)]
+        else:
+            current_ray_line = [(cur_target_abs_position[0], cur_target_abs_position[1])]
+
+        last_abs_position = cur_target_abs_position
+
+        # direction
+        rad = math.radians(cur_direction_in_degree)
+        dx = math.cos(rad)
+        dy = math.sin(rad)
+
+        eps = 1e-12
+        if abs(dx) < eps: dx = 0.0
+        if abs(dy) < eps: dy = 0.0
+
+        # start float pos and starting cell
+        x0 = float(cur_target_abs_position[0])
+        y0 = float(cur_target_abs_position[1])
+        cell_x = int(math.floor(x0))
+        cell_y = int(math.floor(y0))
+
+        # outside start -> handle border/reflection/exit
+        if not (0 <= x0 < IMG_WIDTH and 0 <= y0 < IMG_HEIGHT):
+            ray.append(current_ray_line)
+            if img_border_also_collide:
+                wall_vector = get_img_border_vector_numba(position=(x0, y0), max_width=IMG_WIDTH, max_height=IMG_HEIGHT)
+                new_direction = calc_reflection_(collide_vector=degree_to_vector_(cur_direction_in_degree), wall_vector=wall_vector)
+                cur_direction_in_degree = vector_to_degree_(new_direction[0], new_direction[1])
+                cur_target_abs_position = last_abs_position
+                continue
+            else:
+                return ray
+
+        # DDA parameters
+        tDeltaX = math.inf if dx == 0.0 else abs(1.0 / dx)
+        tDeltaY = math.inf if dy == 0.0 else abs(1.0 / dy)
+
+        if dx > 0:
+            stepX = 1
+            nextBoundaryX = cell_x + 1.0
+            tMaxX = (nextBoundaryX - x0) / dx if dx != 0 else math.inf
+        elif dx < 0:
+            stepX = -1
+            nextBoundaryX = cell_x * 1.0  # left boundary of cell
+            tMaxX = (nextBoundaryX - x0) / dx if dx != 0 else math.inf
+        else:
+            stepX = 0
+            tMaxX = math.inf
+
+        if dy > 0:
+            stepY = 1
+            nextBoundaryY = cell_y + 1.0
+            tMaxY = (nextBoundaryY - y0) / dy if dy != 0 else math.inf
+        elif dy < 0:
+            stepY = -1
+            nextBoundaryY = cell_y * 1.0
+            tMaxY = (nextBoundaryY - y0) / dy if dy != 0 else math.inf
+        else:
+            stepY = 0
+            tMaxY = math.inf
+
+        max_steps = (IMG_WIDTH + IMG_HEIGHT) * 6
+        steps = 0
+        last_position_saved = False
+
+        # immediate-start-in-wall handling
+        if 0 <= cell_x < IMG_WIDTH and 0 <= cell_y < IMG_HEIGHT:
+            start_pixel = float(img[cell_y, cell_x])
+            # if start_pixel in wall_values_set:
+            if _is_in_wall_values(start_pixel, wall_values):
+                # compute a collision point precisely at start (we'll use origin)
+                # add collision point (start) and reflect
+                hit_x = x0
+                hit_y = y0
+                if should_scale:
+                    current_ray_line.append(normalize_point_(x=hit_x, y=hit_y, width=IMG_WIDTH, height=IMG_HEIGHT))
+                else:
+                    current_ray_line.append((hit_x, hit_y))
+                ray.append(current_ray_line)
+
+                building_angle = float(wall_map[cell_y, cell_x])
+                if not np.isfinite(building_angle):
+                    raise Exception("Got non-finite value from Wall-Map.")
+                wall_vector = degree_to_vector_(building_angle)
+                new_direction = calc_reflection_(collide_vector=degree_to_vector_(cur_direction_in_degree), wall_vector=wall_vector)
+                cur_direction_in_degree = vector_to_degree_(new_direction[0], new_direction[1])
+                ndx, ndy = new_direction[0], new_direction[1]
+                cur_target_abs_position = (hit_x + ndx * 1e-3, hit_y + ndy * 1e-3)
+                continue
+
+        # DDA main loop
+        while steps < max_steps:
+            steps += 1
+
+            # choose axis to step and capture t_hit (distance along ray to boundary)
+            if tMaxX < tMaxY:
+                t_hit = tMaxX
+                # step in x
+                cell_x += stepX
+                tMaxX += tDeltaX
+                stepped_axis = 'x'
+            else:
+                t_hit = tMaxY
+                # step in y
+                cell_y += stepY
+                tMaxY += tDeltaY
+                stepped_axis = 'y'
+
+            # compute exact collision position along ray from origin (x0,y0)
+            hit_x = x0 + dx * t_hit
+            hit_y = y0 + dy * t_hit
+
+            # For recording the traversal we can append intermediate cell centers encountered so far.
+            # But more importantly, append the collision point to the current segment BEFORE storing it.
+            if should_scale:
+                current_ray_line.append(normalize_point_(x=hit_x, y=hit_y, width=IMG_WIDTH, height=IMG_HEIGHT))
+            else:
+                current_ray_line.append((hit_x, hit_y))
+
+            # Now check if we've left the image bounds (cell_x, cell_y refer to the new cell we stepped into)
+            if not (0 <= cell_x < IMG_WIDTH and 0 <= cell_y < IMG_HEIGHT):
+                ray.append(current_ray_line)
+                last_position_saved = True
+
+                if img_border_also_collide:
+                    wall_vector = get_img_border_vector_numba(position=(cell_x, cell_y), max_width=IMG_WIDTH, max_height=IMG_HEIGHT)
+                    new_direction = calc_reflection_(collide_vector=degree_to_vector_(cur_direction_in_degree), wall_vector=wall_vector)
+                    new_direction_in_degree = vector_to_degree_(new_direction[0], new_direction[1])
+                    # start next ray from last in-image position (hit_x, hit_y) nudged slightly
+                    ndx, ndy = new_direction[0], new_direction[1]
+                    cur_target_abs_position = (hit_x + ndx * 1e-3, hit_y + ndy * 1e-3)
+                    cur_direction_in_degree = new_direction_in_degree
+                    break
+                else:
+                    return ray
+
+            # sample the pixel in the cell we stepped into
+            next_pixel = float(img[cell_y, cell_x])
+            if _is_in_wall_values(next_pixel, wall_values):
+                # we hit a wall — collision point already appended
+                last_abs_position = (hit_x, hit_y)
+                ray.append(current_ray_line)
+                last_position_saved = True
+
+                building_angle = float(wall_map[cell_y, cell_x])
+                if not np.isfinite(building_angle):
+                    raise Exception("Got non-finite value from Wall-Map.")
+                wall_vector = degree_to_vector_(building_angle)
+
+                new_direction = calc_reflection_(collide_vector=degree_to_vector_(cur_direction_in_degree), wall_vector=wall_vector)
+                new_direction_in_degree = vector_to_degree_(new_direction[0], new_direction[1])
+
+                # start next beam from collision point nudged outwards
+                ndx, ndy = new_direction[0], new_direction[1]
+                cur_target_abs_position = (hit_x + ndx * 1e-3, hit_y + ndy * 1e-3)
+                cur_direction_in_degree = new_direction_in_degree
+                break
+            else:
+                # no hit -> continue marching; also add a representative point in the traversed cell (optional)
+                # we already appended the exact hit point for this step; for smoother lines you may add cell center too
+                last_abs_position = (hit_x, hit_y)
+                # continue
+
+        # end DDA loop
+        if not last_position_saved:
+            ray.append(current_ray_line)
+
+    return ray
+
+
+
+@numba.njit(cache=True, fastmath=True)
+def get_all_pixel_coordinates_in_between_numba(x1, y1, x2, y2):
+    """
+    Get all pixel coordinates along a line between two points using Bresenham's algorithm.
+
+    https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
+
+    Parameters:
+    - x1 (int): <br>
+        Starting x-coordinate.
+    - y1 (int): <br>
+        Starting y-coordinate.
+    - x2 (int): <br>
+        Ending x-coordinate.
+    - y2 (int): <br>
+        Ending y-coordinate.
+
+    Returns:
+    - list: 
+        List of (x, y) tuples representing all pixels between the start and end points
+    """
+    coordinates = List.empty_list(TYPE_POINT_INT)
+
+    dx = abs(x2 - x1)
+    dy = abs(y2 - y1)
+    x, y = x1, y1
+
+    sx = 1 if x1 < x2 else -1
+    sy = 1 if y1 < y2 else -1
+
+    if dx > dy:
+        err = dx / 2.0
+        while x != x2:
+            coordinates.append((x, y))
+            err -= dy
+            if err < 0:
+                y += sy
+                err += dx
+            x += sx
+    else:
+        err = dy / 2.0
+        while y != y2:
+            coordinates.append((x, y))
+            err -= dx
+            if err < 0:
+                x += sx
+                err += dy
+            y += sy
+
+    coordinates.append((x2, y2))  # include the last point
+    return list(coordinates)
 
 
 

@@ -79,11 +79,13 @@ def get_bit_depth(img):
     Retrieve the bit depth of an image based on its NumPy data type.
 
     Parameters:
-        img (numpy.ndarray): Input image array.
+        img (numpy.ndarray): <br>
+            Input image array.
 
-    Returns:
-        int or str: Bit depth of the image (8, 16, 32, or 64).
-                    Returns "unknown" if the data type is not recognized.
+    Returns: <br>
+        int or str:<br> 
+            Bit depth of the image (8, 16, 32, or 64).<br>
+            Returns "unknown" if the data type is not recognized.
 
     Notes:
         The mapping is defined for common image dtypes:
@@ -108,10 +110,10 @@ def get_width_height(img, channels_before=0):
     Extract the width and height of an image, optionally offset by leading channels.
 
     Parameters:
-        img (numpy.ndarray): Input image array.
-        channels_before (int, optional): Offset in the shape dimension if
-                                         channels precede height and width
-                                         (default: 0).
+        - img (numpy.ndarray): <br>
+            Input image array.
+        - channels_before (int, optional): <br>
+            Offset in the shape dimension if channels precede height and width (default: 0).
 
     Returns:
         tuple: (width, height) of the image.
@@ -131,15 +133,16 @@ def open(src, should_scale=False, auto_scale_method=True, should_print=True, unc
     Load a grayscale image from a file path.
 
     Parameters:
-        src (str): Path to the image file.
-        should_scale (bool, optional): If True, scale pixel values to [0, 1]
-                                       according to bit depth (default: False).
-        auto_scale_method (bool, optionl): If True, the scaling will auto decide to up or down scale 
-                                            if should_sclae is also True else always down scale (default: True).
-        should_print (bool, optional): If True, print image info to console
-                                       (default: True).
+        - src (str): Path to the image file.
+        - should_scale (bool, optional):<br>
+            If True, scale pixel values to [0, 1] according to bit depth (default: False).
+        - auto_scale_method (bool, optionl): <br>
+            If True, the scaling will auto decide to up or down scale 
+            if should_sclae is also True else always down scale (default: True).
+        - should_print (bool, optional): <br>
+            If True, print image info to console (default: True).
 
-    Returns:
+    Returns: <br>
         numpy.ndarray: Loaded grayscale image.
 
     Example:
@@ -176,12 +179,14 @@ def save(img, src, should_scale=False, auto_scale_method=True):
     Save an image to disk.
 
     Parameters:
-        img (numpy.ndarray): Image to save.
-        src (str): Destination file path.
-        should_scale (bool, optional): If True, scale pixel values to [0, 1]
-                                       before saving (default: False).
-        auto_scale_method (bool, optionl): If True, the scaling will auto decide to up or down scale 
-                                            if should_sclae is also True else always down scale (default: True).
+        - img (numpy.ndarray): Image to save.
+        - src (str): <br>
+            Destination file path.
+        - should_scale (bool, optional): <br>
+            If True, scale pixel values to [0, 1] before saving (default: False).
+        - auto_scale_method (bool, optionl): <br>
+            If True, the scaling will auto decide to up or down scale 
+            if should_sclae is also True else always down scale (default: True).
 
     Notes:
         - The function uses OpenCV's `cv2.imwrite` for saving.
@@ -207,11 +212,14 @@ def imshow(img, size=8, axis_off=True, cmap="gray"):
     Display an image using Matplotlib.
 
     Parameters:
-        img (numpy.ndarray): Image to display.
-        size (int, optional): Display size in inches (default: 8).
-        axis_off (bool, optional): If True, hides the axes (default: True).
-        cmap (str, optional): Colormap name.
-                              Use 'random' for a random Matplotlib colormap (default: 'gray').
+        - img (numpy.ndarray): <br>
+            Image to display.
+        - size (int, optional): <br>
+            Display size in inches (default: 8).
+        - axis_off (bool, optional): <br>
+            If True, hides the axes (default: True).
+        - cmap (str, optional):<br>
+            Colormap name. Use 'random' for a random Matplotlib colormap (default: 'gray').
 
     Behavior:
         - If `img` has 3 channels, it is converted from BGR to RGB.
@@ -267,24 +275,39 @@ def show_samples(input_samples, pred_samples, real_samples, model_name="Model",
     It arranges them in a grid and can optionally normalize, invert, or save the output.
 
     Parameters:
-        input_samples (list[str] or list[np.ndarray]): Input sample images.
-        pred_samples (list[str] or list[np.ndarray]): Model prediction images.
-        real_samples (list[str] or list[np.ndarray]): Ground truth images.
-        model_name (str, optional): Name of the model to display in titles (default: "Model").
-        n_samples (int, optional): Number of sample groups to display (default: 3).
-        n_cols (int, optional): Number of columns per sample group (default: 4).
-                                Typically: Input | Prediction | Ground Truth | Difference.
-        image_width (int, optional): Width of one image in inches (default: 4).
-        cmap (str, optional): Colormap for displaying grayscale images (default: "gray").
-        normalize (bool, optional): Whether to normalize pixel values to [0, 1] (default: True).
-        invert (bool, optional): Whether to invert pixel values (255 - img) (default: False).
-        axis (bool, optional): Whether to show image axes (default: False).
-        save_to (str, optional): Path to save the figure (default: None).
-        hspace (float, optional): Vertical spacing between subplots (default: 0.3).
-        wspace (float, optional): Horizontal spacing between subplots (default: 0.2).
-        use_original_style (bool, optional): If True, preserves the current matplotlib style (default: False).
+        - input_samples (list[str] or list[np.ndarray]): <br>
+            Input sample images.
+        - pred_samples (list[str] or list[np.ndarray]): <br>
+            Model prediction images.
+        - real_samples (list[str] or list[np.ndarray]): <br>
+            Ground truth images.
+        - model_name (str, optional): <br>
+            Name of the model to display in titles (default: "Model").
+        - n_samples (int, optional): <br>
+            Number of sample groups to display (default: 3).
+        - n_cols (int, optional): <br>
+            Number of columns per sample group (default: 4).<br>
+            Typically: Input | Prediction | Ground Truth | Difference.
+        - image_width (int, optional): <br>
+            Width of one image in inches (default: 4).
+        - cmap (str, optional): <br>
+            Colormap for displaying grayscale images (default: "gray").
+        - normalize (bool, optional): <br>
+            Whether to normalize pixel values to [0, 1] (default: True).
+        - invert (bool, optional): <br>
+            Whether to invert pixel values (255 - img) (default: False).
+        - axis (bool, optional):<br>
+            Whether to show image axes (default: False).
+        - save_to (str, optional): <br>
+            Path to save the figure (default: None).
+        - hspace (float, optional): <br>
+            Vertical spacing between subplots (default: 0.3).
+        - wspace (float, optional): <br>
+            Horizontal spacing between subplots (default: 0.2).
+        - use_original_style (bool, optional): <br>
+            If True, preserves the current matplotlib style (default: False).
 
-    Returns:
+    Returns:<br>
         None
 
     Example:
@@ -364,22 +387,34 @@ def advanced_imshow(img, title=None, image_width=10, axis=False,
     input tensors, batch display, color inversion, and saving to disk.
 
     Parameters:
-        img (np.ndarray): Input image or batch of images.
-                          Accepted shapes:
-                              [H, W], [H, W, C], [N, H, W], or [N, H, W, C].
-        title (str or list[str], optional): Overall or per-image titles.
-        image_width (int, optional): Width of each image in inches (default: 10).
-        axis (bool, optional): Whether to show axes (default: False).
-        color_space (str, optional): Color space of the image: "RGB", "BGR", "gray", or "HSV" (default: "RGB").
-        cmap (str, optional): Matplotlib colormap for grayscale images (default: None).
-        cols (int, optional): Number of columns in the subplot grid (default: 1).
-        save_to (str, optional): File path to save the figure (default: None).
-        hspace (float, optional): Vertical spacing between subplots (default: 0.2).
-        wspace (float, optional): Horizontal spacing between subplots (default: 0.2).
-        use_original_style (bool, optional): Keep current Matplotlib style if True (default: False).
-        invert (bool, optional): Invert color values (default: False).
+        - img (np.ndarray): <br>
+            Input image or batch of images.<br>
+            Accepted shapes:<br>
+            [H, W], [H, W, C], [N, H, W], or [N, H, W, C].
+        - title (str or list[str], optional): <br>
+            Overall or per-image titles.
+        - image_width (int, optional): <br>
+            Width of each image in inches (default: 10).
+        - axis (bool, optional): <br>
+            Whether to show axes (default: False).
+        - color_space (str, optional): <br>
+            Color space of the image: "RGB", "BGR", "gray", or "HSV" (default: "RGB").
+        - cmap (str, optional): <br>
+            Matplotlib colormap for grayscale images (default: None).
+        - cols (int, optional): <br>
+            Number of columns in the subplot grid (default: 1).
+        - save_to (str, optional): <br>
+            File path to save the figure (default: None).
+        - hspace (float, optional): <br>
+            Vertical spacing between subplots (default: 0.2).
+        - wspace (float, optional): <br>
+            Horizontal spacing between subplots (default: 0.2).
+        - use_original_style (bool, optional): <br>
+            Keep current Matplotlib style if True (default: False).
+        - invert (bool, optional): <br>
+            Invert color values (default: False).
 
-    Returns:
+    Returns:<br>
         None
 
     Example:
@@ -468,19 +503,31 @@ def show_images(image_paths: list, title=None, image_width=5, axis=False,
     Load and display multiple images from disk using `advanced_imshow`.
 
     Parameters:
-        image_paths (list[str]): List of file paths to load.
-        title (str or list[str], optional): Plot title(s).
-        image_width (int, optional): Width of each image (default: 5).
-        axis (bool, optional): Whether to display axes (default: False).
-        color_space (str, optional): Color space to convert images to.
-                                     One of: "gray", "rgb", "hsv", "bgr" (default: "gray").
-        cmap (str, optional): Colormap for grayscale images (default: None).
-        cols (int, optional): Number of columns in the grid (default: 2).
-        save_to (str, optional): Path to save the figure (default: None).
-        hspace (float, optional): Vertical spacing between subplots (default: 0.01).
-        wspace (float, optional): Horizontal spacing between subplots (default: 0.01).
-        use_original_style (bool, optional): Keep current Matplotlib style (default: False).
-        invert (bool, optional): Whether to invert images (default: False).
+        - image_paths (list[str]): <br>
+            List of file paths to load.
+        - title (str or list[str], optional): <br>
+            Plot title(s).
+        - image_width (int, optional): <br>
+            Width of each image (default: 5).
+        - axis (bool, optional): <br>
+            Whether to display axes (default: False).
+        - color_space (str, optional): <br>
+            Color space to convert images to.<br>
+            One of: "gray", "rgb", "hsv", "bgr" (default: "gray").
+        - cmap (str, optional): <br>
+            Colormap for grayscale images (default: None).
+        - cols (int, optional): <br>
+            Number of columns in the grid (default: 2).
+        - save_to (str, optional): <br>
+            Path to save the figure (default: None).
+        - hspace (float, optional): <br>
+            Vertical spacing between subplots (default: 0.01).
+        - wspace (float, optional): <br>
+            Horizontal spacing between subplots (default: 0.01).
+        - use_original_style (bool, optional): <br>
+            Keep current Matplotlib style (default: False).
+        - invert (bool, optional): <br>
+            Whether to invert images (default: False).
 
     Returns:
         np.ndarray: Loaded images stacked as an array.
@@ -517,14 +564,20 @@ def plot_image_with_values(img, block_size=8, cmap='gray', title=None,
     values are displayed as text annotations directly on the image.
 
     Parameters:
-        img (np.ndarray): 2D grayscale image (H, W) or 3D single-channel image (H, W, 1).
-        block_size (int or tuple, optional): Size of each block (default: 8).
-        cmap (str, optional): Matplotlib colormap (default: "gray").
-        title (str, optional): Plot title (default: None).
-        font_size (int, optional): Font size of value annotations (default: 6).
-        save_to (str, optional): Path to save the figure (default: None).
+        - img (np.ndarray): <br>
+            2D grayscale image (H, W) or 3D single-channel image (H, W, 1).
+        - block_size (int or tuple, optional): <br>
+            Size of each block (default: 8).
+        - cmap (str, optional): <br>
+            Matplotlib colormap (default: "gray").
+        - title (str, optional): <br>
+            Plot title (default: None).
+        - font_size (int, optional): <br>
+            Font size of value annotations (default: 6).
+        - save_to (str, optional): <br>
+            Path to save the figure (default: None).
 
-    Returns:
+    Returns:<br>
         None
 
     Example:
@@ -596,14 +649,20 @@ def show_image_with_line_and_profile(imgs, axis='row', index=None, titles=None, 
     and plot the corresponding pixel intensity profile below or beside each image.
 
     Parameters:
-        imgs (list[np.ndarray]): List of grayscale images to analyze.
-        axis (str, optional): Direction of the line ("row" or "column") (default: "row").
-        index (int, optional): Index of the selected line. If None, the central line is used (default: None).
-        titles (list[str], optional): Titles for each image (default: ["Image 1", "Image 2", ...]).
-        figsize (tuple, optional): Figure size per image pair (default: (10, 4)).
+        - imgs (list[np.ndarray]):<br>
+            List of grayscale images to analyze.
+        - axis (str, optional):<br>
+            Direction of the line ("row" or "column") (default: "row").
+        - index (int, optional): <br>
+            Index of the selected line. If None, the central line is used (default: None).
+        - titles (list[str], optional): <br>
+            Titles for each image (default: ["Image 1", "Image 2", ...]).
+        - figsize (tuple, optional): <br>
+            Figure size per image pair (default: (10, 4)).
 
     Returns:
-        list[np.ndarray]: List of pixel intensity profiles corresponding to the selected line in each image.
+        - list[np.ndarray]: <br>
+            List of pixel intensity profiles corresponding to the selected line in each image.
 
     Example:
         >>> show_image_with_line_and_profile(

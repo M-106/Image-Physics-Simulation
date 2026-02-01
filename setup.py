@@ -38,7 +38,7 @@ setup(
     #     annotate=True,
     # ),
     name='img-phy-sim',
-    version='0.9',
+    version='1.0',
     packages=find_packages(),  # ['img_phy_sim'],
     install_requires=[
         # List any dependencies here, e.g. 'numpy', 'requests'
@@ -47,8 +47,8 @@ setup(
         "matplotlib",
         "scikit-image",
         "joblib",
-        "shapely"
-        # "cypthon"
+        "shapely",
+        "numba"
     ],
     extras_require={
         # full version (including PhysGen/data module)
@@ -64,7 +64,7 @@ setup(
     long_description = readme,
     long_description_content_type="text/markdown",
     include_package_data=True,  # Ensures files from MANIFEST.in are included
-    download_url = 'https://github.com/M-106/Image-Physics-Simulation/archive/v_04.tar.gz',
+    download_url = 'https://github.com/M-106/Image-Physics-Simulation/archive/v_05.tar.gz',
     url="https://github.com/M-106/Image-Physics-Simulation",
     project_urls={
         "Documentation": "https://M-106.github.io/Image-Physics-Simulation/img_phy_sim",

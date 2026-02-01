@@ -167,13 +167,13 @@ if DATA_DEPENDENCIES_AVAILABLE:
             Loads PhysGen Dataset.
 
             Parameters:
-            - variation : str
+            - variation : str <br>
                 Chooses the used dataset variant: sound_baseline, sound_reflection, sound_diffraction, sound_combined.
-            - mode : str
+            - mode : str <br>
                 Can be "train", "test", "eval".
-            - input_type : str
+            - input_type : str <br>
                 Defines the used Input -> "osm", "base_simulation"
-            - output_type : str
+            - output_type : str <br>
                 Defines the Output -> "standard", "complex_only"
             """
             self.device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
