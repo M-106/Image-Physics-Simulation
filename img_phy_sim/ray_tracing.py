@@ -61,6 +61,7 @@ Functions:
 - draw_rectangle_with_thickness(...) - Draw filled or thick rectangles.
 - draw_line_or_point(...) - Draw a single point or a line segment.
 - draw_rays(...)    - Visualize traced rays as images or channels.
+- trace_and_draw_rays(...)    - Compute and draw rays.
 """
 
 
@@ -865,7 +866,7 @@ def trace_beam(abs_position,
                reflexion_order=3,
                should_scale=True,
                should_return_iterative=False,
-               use_numba_compilation=False):
+               remove_iterative=True):
     """
     Trace a ray (beam) through an image with walls and reflections.
 
@@ -891,31 +892,20 @@ def trace_beam(abs_position,
         Whether to normalize positions to [0, 1] (default: True).
     - should_return_iterative (bool, optional): <br>
         Whether to return a RayIterator for step-by-step analysis (default: False).
-    - use_numba_compilation (bool, optional):<br>
-        Whether to use the compiled (to machine code) version of compute heavy functions.
+    - remove_iterative (bool, optional): <br>
+        Whether to optimize (ignore) ray-iterator -> only in use if should_return_iterative is False.
 
     Returns:
     - list: 
         Nested list structure representing the traced ray and its reflections. 
         Format: ray[beam][point] = (x, y)
     """
-    # numba optimization -> change function locally
-    if use_numba_compilation:
-        calc_reflection_ = calc_reflection_numba
-        degree_to_vector_ = degree_to_vector_numba
-        vector_to_degree_ = vector_to_degree_numba
-        normalize_point_ = normalize_point_numba
-    else:
-        calc_reflection_ =  calc_reflection
-        degree_to_vector_ = degree_to_vector
-        vector_to_degree_ = vector_to_degree
-        normalize_point_ = normalize_point
-
     reflexion_order += 1  # Reflexion Order == 0 means, no reflections, therefore only 1 loop
     IMG_WIDTH, IMG_HEIGHT =  get_width_height(img)
 
     ray = []
-    ray_iterator = RayIterator()
+    if should_return_iterative or not remove_iterative:
+        ray_iterator = RayIterator()
 
     cur_target_abs_position = abs_position
     cur_direction_in_degree = direction_in_degree % 360
@@ -923,10 +913,11 @@ def trace_beam(abs_position,
     for cur_depth in range(reflexion_order):
         # print(f"(Reflexion Order '{cur_depth}') {ray=}")
         if should_scale:
-            current_ray_line = [normalize_point_(x=cur_target_abs_position[0], y=cur_target_abs_position[1], width=IMG_WIDTH, height=IMG_HEIGHT)]
+            current_ray_line = [normalize_point(x=cur_target_abs_position[0], y=cur_target_abs_position[1], width=IMG_WIDTH, height=IMG_HEIGHT)]
         else:
             current_ray_line = [(cur_target_abs_position[0], cur_target_abs_position[1])]
-        ray_iterator.add_iteration([copy.deepcopy(ray)+[current_ray_line]])
+        if should_return_iterative or not remove_iterative:
+            ray_iterator.add_iteration([copy.deepcopy(ray)+[current_ray_line]])
 
         last_abs_position = cur_target_abs_position
 
@@ -950,8 +941,6 @@ def trace_beam(abs_position,
             # check if ray is at end
             if not (0 <= current_position[0] < IMG_WIDTH and 0 <= current_position[1] < IMG_HEIGHT):
                 ray += [current_ray_line]
-                # ray_iterator.add_iteration(ray)
-                # last_position_saved = True
 
                 if img_border_also_collide:
                      # get reflection angle
@@ -960,8 +949,8 @@ def trace_beam(abs_position,
                                                            max_height=IMG_HEIGHT)
 
                     # calc new direct vector
-                    new_direction = calc_reflection_(collide_vector=degree_to_vector_(cur_direction_in_degree), wall_vector=wall_vector)
-                    new_direction_in_degree = vector_to_degree_(new_direction[0], new_direction[1])
+                    new_direction = calc_reflection(collide_vector=degree_to_vector(cur_direction_in_degree), wall_vector=wall_vector)
+                    new_direction_in_degree = vector_to_degree(new_direction[0], new_direction[1])
 
                     # start new beam calculation
                     cur_target_abs_position = last_abs_position
@@ -976,24 +965,18 @@ def trace_beam(abs_position,
 
             # check if hit building
             if float(next_pixel) in wall_values:
-                # if should_scale:
-                #     current_ray_line += [normalize_point_(x=current_position[0], y=current_position[1], width=IMG_WIDTH, height=IMG_HEIGHT)]
-                # else:
-                #     current_ray_line += [(current_position[0], current_position[1])]
                 last_abs_position = (current_position[0], current_position[1])
                 ray += [current_ray_line]
-                # ray_iterator.add_iteration(ray)
-                # last_position_saved = True
 
                 # get building wall reflection angle
                 building_angle = wall_map[int(current_position[1]), int(current_position[0])]
                 if building_angle == np.inf:
                     raise Exception("Got inf value from Wall-Map.")
-                wall_vector = degree_to_vector_(building_angle)
+                wall_vector = degree_to_vector(building_angle)
 
                 # calc new direct vector
-                new_direction = calc_reflection_(collide_vector=degree_to_vector_(cur_direction_in_degree), wall_vector=wall_vector)
-                new_direction_in_degree = vector_to_degree_(new_direction[0], new_direction[1])
+                new_direction = calc_reflection(collide_vector=degree_to_vector(cur_direction_in_degree), wall_vector=wall_vector)
+                new_direction_in_degree = vector_to_degree(new_direction[0], new_direction[1])
 
                 # start new beam calculation
                 cur_target_abs_position = last_abs_position
@@ -1002,14 +985,12 @@ def trace_beam(abs_position,
             else:
                 # update current ray
                 if should_scale:
-                    current_ray_line += [normalize_point_(x=current_position[0], y=current_position[1], width=IMG_WIDTH, height=IMG_HEIGHT)]
+                    current_ray_line += [normalize_point(x=current_position[0], y=current_position[1], width=IMG_WIDTH, height=IMG_HEIGHT)]
                 else:
                     current_ray_line += [(current_position[0], current_position[1])]
-                ray_iterator.add_iteration([copy.deepcopy(ray)+[current_ray_line]])
+                if should_return_iterative or not remove_iterative:
+                    ray_iterator.add_iteration([copy.deepcopy(ray)+[current_ray_line]])
                 last_abs_position = (current_position[0], current_position[1])
-
-        # if last_position_saved == False:
-        #     ray += [current_ray_line]
     
     if should_return_iterative:
         return ray_iterator
@@ -1026,7 +1007,7 @@ def trace_beam_with_DDA(abs_position,
                reflexion_order=3,
                should_scale=True,
                should_return_iterative=False,
-               use_numba_compilation=False):
+               remove_iterative=True):
     """
     Trace a ray (beam) through a 2D image using a DDA (Digital Differential Analyzer)
     algorithm with precise collision points and physically accurate reflections.
@@ -1062,31 +1043,20 @@ def trace_beam_with_DDA(abs_position,
         Otherwise absolute pixel positions are returned. Default: True.
     - should_return_iterative (bool, optional): <br>
         Whether to return a RayIterator for step-by-step analysis (default: False).
-    - use_numba_compilation (bool, optional):<br>
-        Whether to use the compiled (to machine code) version of compute heavy functions.
+    - remove_iterative (bool, optional): <br>
+        Whether to optimize (ignore) ray-iterator -> only in use if should_return_iterative is False.
 
     Returns:
     - list: 
         Nested list structure representing the traced ray and its reflections. 
         Format: ray[beam][point] = (x, y)
     """
-    # numba optimization -> change function locally
-    if use_numba_compilation:
-        calc_reflection_ = calc_reflection_numba
-        degree_to_vector_ = degree_to_vector_numba
-        vector_to_degree_ = vector_to_degree_numba
-        normalize_point_ = normalize_point_numba
-    else:
-        calc_reflection_ =  calc_reflection
-        degree_to_vector_ = degree_to_vector
-        vector_to_degree_ = vector_to_degree
-        normalize_point_ = normalize_point
-
     reflexion_order += 1
     IMG_WIDTH, IMG_HEIGHT = get_width_height(img)
 
     ray = []
-    ray_iterator = RayIterator()
+    if should_return_iterative or not remove_iterative:
+        ray_iterator = RayIterator()
 
     cur_target_abs_position = (float(abs_position[0]), float(abs_position[1]))
     cur_direction_in_degree = direction_in_degree % 360
@@ -1106,10 +1076,11 @@ def trace_beam_with_DDA(abs_position,
     # go through every reflection -> will early stop if hitting a wall (if wall-bouncing is deactivated)
     for cur_depth in range(reflexion_order):
         if should_scale:
-            current_ray_line = [normalize_point_(x=cur_target_abs_position[0], y=cur_target_abs_position[1], width=IMG_WIDTH, height=IMG_HEIGHT)]
+            current_ray_line = [normalize_point(x=cur_target_abs_position[0], y=cur_target_abs_position[1], width=IMG_WIDTH, height=IMG_HEIGHT)]
         else:
             current_ray_line = [(cur_target_abs_position[0], cur_target_abs_position[1])]
-        ray_iterator.add_iteration([copy.deepcopy(ray)+[current_ray_line]])
+        if should_return_iterative or not remove_iterative:
+            ray_iterator.add_iteration([copy.deepcopy(ray)+[current_ray_line]])
 
         last_abs_position = cur_target_abs_position
 
@@ -1131,11 +1102,11 @@ def trace_beam_with_DDA(abs_position,
         # outside start -> handle border/reflection/exit
         if not (0 <= x0 < IMG_WIDTH and 0 <= y0 < IMG_HEIGHT):
             ray += [current_ray_line]
-            # ray_iterator.add_iteration(ray)
+
             if img_border_also_collide:
                 wall_vector = get_img_border_vector(position=(x0, y0), max_width=IMG_WIDTH, max_height=IMG_HEIGHT)
-                new_direction = calc_reflection_(collide_vector=degree_to_vector_(cur_direction_in_degree), wall_vector=wall_vector)
-                cur_direction_in_degree = vector_to_degree_(new_direction[0], new_direction[1])
+                new_direction = calc_reflection(collide_vector=degree_to_vector(cur_direction_in_degree), wall_vector=wall_vector)
+                cur_direction_in_degree = vector_to_degree(new_direction[0], new_direction[1])
                 cur_target_abs_position = last_abs_position
                 continue
             else:
@@ -1184,19 +1155,19 @@ def trace_beam_with_DDA(abs_position,
                 hit_x = x0
                 hit_y = y0
                 if should_scale:
-                    current_ray_line += [normalize_point_(x=hit_x, y=hit_y, width=IMG_WIDTH, height=IMG_HEIGHT)]
+                    current_ray_line += [normalize_point(x=hit_x, y=hit_y, width=IMG_WIDTH, height=IMG_HEIGHT)]
                 else:
                     current_ray_line += [(hit_x, hit_y)]
-                ray_iterator.add_iteration([copy.deepcopy(ray)+[current_ray_line]])
+                if should_return_iterative or not remove_iterative:
+                    ray_iterator.add_iteration([copy.deepcopy(ray)+[current_ray_line]])
                 ray += [current_ray_line]
-                # ray_iterator.add_iteration(ray)
 
                 building_angle = float(wall_map[cell_y, cell_x])
                 if not np.isfinite(building_angle):
                     raise Exception("Got non-finite value from Wall-Map.")
-                wall_vector = degree_to_vector_(building_angle)
-                new_direction = calc_reflection_(collide_vector=degree_to_vector_(cur_direction_in_degree), wall_vector=wall_vector)
-                cur_direction_in_degree = vector_to_degree_(new_direction[0], new_direction[1])
+                wall_vector = degree_to_vector(building_angle)
+                new_direction = calc_reflection(collide_vector=degree_to_vector(cur_direction_in_degree), wall_vector=wall_vector)
+                cur_direction_in_degree = vector_to_degree(new_direction[0], new_direction[1])
                 ndx, ndy = new_direction[0], new_direction[1]
                 cur_target_abs_position = (hit_x + ndx * 1e-3, hit_y + ndy * 1e-3)
                 continue
@@ -1224,21 +1195,21 @@ def trace_beam_with_DDA(abs_position,
             # For recording the traversal we can append intermediate cell centers encountered so far.
             # But more importantly, append the collision point to the current segment BEFORE storing it.
             if should_scale:
-                current_ray_line += [normalize_point_(x=hit_x, y=hit_y, width=IMG_WIDTH, height=IMG_HEIGHT)]
+                current_ray_line += [normalize_point(x=hit_x, y=hit_y, width=IMG_WIDTH, height=IMG_HEIGHT)]
             else:
                 current_ray_line += [(hit_x, hit_y)]
-            ray_iterator.add_iteration([copy.deepcopy(ray)+[current_ray_line]])
+            if should_return_iterative or not remove_iterative:
+                ray_iterator.add_iteration([copy.deepcopy(ray)+[current_ray_line]])
 
             # Now check if we've left the image bounds (cell_x, cell_y refer to the new cell we stepped into)
             if not (0 <= cell_x < IMG_WIDTH and 0 <= cell_y < IMG_HEIGHT):
                 ray += [current_ray_line]
-                # ray_iterator.add_iteration(ray)
                 last_position_saved = True
 
                 if img_border_also_collide:
                     wall_vector = get_img_border_vector(position=(cell_x, cell_y), max_width=IMG_WIDTH, max_height=IMG_HEIGHT)
-                    new_direction = calc_reflection_(collide_vector=degree_to_vector_(cur_direction_in_degree), wall_vector=wall_vector)
-                    new_direction_in_degree = vector_to_degree_(new_direction[0], new_direction[1])
+                    new_direction = calc_reflection(collide_vector=degree_to_vector(cur_direction_in_degree), wall_vector=wall_vector)
+                    new_direction_in_degree = vector_to_degree(new_direction[0], new_direction[1])
                     # start next ray from last in-image position (hit_x, hit_y) nudged slightly
                     ndx, ndy = new_direction[0], new_direction[1]
                     cur_target_abs_position = (hit_x + ndx * 1e-3, hit_y + ndy * 1e-3)
@@ -1255,16 +1226,15 @@ def trace_beam_with_DDA(abs_position,
                 # we hit a wall — collision point already appended
                 last_abs_position = (hit_x, hit_y)
                 ray += [current_ray_line]
-                # ray_iterator.add_iteration(ray)
                 last_position_saved = True
 
                 building_angle = float(wall_map[cell_y, cell_x])
                 if not np.isfinite(building_angle):
                     raise Exception("Got non-finite value from Wall-Map.")
-                wall_vector = degree_to_vector_(building_angle)
+                wall_vector = degree_to_vector(building_angle)
 
-                new_direction = calc_reflection_(collide_vector=degree_to_vector_(cur_direction_in_degree), wall_vector=wall_vector)
-                new_direction_in_degree = vector_to_degree_(new_direction[0], new_direction[1])
+                new_direction = calc_reflection(collide_vector=degree_to_vector(cur_direction_in_degree), wall_vector=wall_vector)
+                new_direction_in_degree = vector_to_degree(new_direction[0], new_direction[1])
 
                 # start next beam from collision point nudged outwards
                 ndx, ndy = new_direction[0], new_direction[1]
@@ -1280,7 +1250,6 @@ def trace_beam_with_DDA(abs_position,
         # end DDA loop
         if not last_position_saved:
             ray.append(current_ray_line)
-            # ray_iterator.add_iteration(ray)
 
     if should_return_iterative:
         return ray_iterator
@@ -1301,7 +1270,8 @@ def trace_beams(rel_position,
                 iterative_tracking=False,
                 iterative_steps=None,
                 parallelization=0,
-                use_numba_compilation=False):
+                use_numba_compilation=False,
+                ignore_iterative_optimization=True):
     """
     Trace multiple rays (beams) from a single position through an image with walls and reflections.
 
@@ -1336,6 +1306,8 @@ def trace_beams(rel_position,
         Number of steps for iterative reduction if using iterative tracking. `None` for all steps.
     - use_numba_compilation (bool, optional):<br>
         Whether to use the compiled (to machine code) version of compute heavy functions.
+    - ignore_iterative_optimization (bool, optional): <br>
+        Whether to used optimized ignore iteration data if iterative_tracking is False. 
 
     Returns:
     - list: <br>
@@ -1384,7 +1356,7 @@ def trace_beams(rel_position,
                                         reflexion_order=reflexion_order,
                                         should_scale=should_scale_rays,
                                         should_return_iterative=iterative_tracking,
-                                        use_numba_compilation=use_numba_compilation
+                                        remove_iterative=ignore_iterative_optimization
                                     )
         )
         
@@ -1536,6 +1508,8 @@ def draw_rectangle_with_thickness(img, start_point, end_point, value, thickness=
 
     cv2.rectangle(img, (x1, y1), (x2, y2), value, thickness=-1)
 
+
+
 def draw_line_or_point(img, start_point, end_point, fill_value, thickness):
     """
     Draw either a line or a single point on an image.
@@ -1561,6 +1535,8 @@ def draw_line_or_point(img, start_point, end_point, fill_value, thickness):
         draw_rectangle_with_thickness(img=img, start_point=start_point, end_point=end_point, value=fill_value, thickness=thickness)
     else:
         cv2.line(img, start_point, end_point, fill_value, thickness)
+
+
 
 def draw_rays(rays, detail_draw=True,
               output_format="single_image", # single_image, multiple_images, channels 
@@ -1705,6 +1681,7 @@ def trace_and_draw_rays(rel_position,
                         iterative_steps=None,
                         parallelization=0,
                         use_numba_compilation=False,
+                        ignore_iterative_optimization=True,
                         detail_draw=True,
                         output_format="single_image", # single_image, multiple_images, channels 
                         img_background=None, 
@@ -1750,8 +1727,8 @@ def trace_and_draw_rays(rel_position,
         Number of steps for iterative reduction if using iterative tracking. `None` for all steps.
     - use_numba_compilation (bool, optional):<br>
         Whether to use the compiled (to machine code) version of compute heavy functions.
-    - rays (list): <br>
-        Nested list of rays in the format rays[ray][beam][point] = (x, y).
+    - ignore_iterative_optimization (bool, optional): <br>
+        Whether to used optimized ignore iteration data if iterative_tracking is False. 
     - detail_draw (bool, optional): <br>
         Whether to draw every point or just beam endpoints (default: True).
     - output_format (str, optional): <br>
@@ -1795,7 +1772,8 @@ def trace_and_draw_rays(rel_position,
                         iterative_tracking=iterative_tracking,
                         iterative_steps=iterative_steps,
                         parallelization=parallelization,
-                        use_numba_compilation=use_numba_compilation)
+                        use_numba_compilation=use_numba_compilation,
+                        ignore_iterative_optimization=ignore_iterative_optimization)
     
     return draw_rays(rays, 
                      detail_draw=detail_draw,
@@ -1810,6 +1788,7 @@ def trace_and_draw_rays(rel_position,
                      original_max_width=original_max_width, 
                      original_max_height=original_max_height,
                      show_only_reflections=show_only_reflections)
+
 
 
 # --------------------------------
@@ -1955,7 +1934,7 @@ def trace_beam_numba(abs_position,
                      reflexion_order=3,
                      should_scale=True,
                      should_return_iterative=False,
-                     use_numba_compilation=False):
+                     remove_iterative=True):
     """
     Trace a ray (beam) through an image with walls and reflections.
 
@@ -1981,19 +1960,16 @@ def trace_beam_numba(abs_position,
         Whether to normalize positions to [0, 1] (default: True).
     - should_return_iterative (bool, optional): <br>
         Whether to return a RayIterator for step-by-step analysis (default: False).
-    - use_numba_compilation (bool, optional):<br>
-        Whether to use the compiled (to machine code) version of compute heavy functions.
+    - ignore_iterative_optimization (bool, optional): <br>
+        Whether to used optimized ignore iteration data if iterative_tracking is False. 
+    - remove_iterative (bool, optional): <br>
+        Ignored in this numba version.
 
     Returns:
     - list: 
         Nested list structure representing the traced ray and its reflections. 
         Format: ray[beam][point] = (x, y)
     """
-    calc_reflection_ = calc_reflection_numba
-    degree_to_vector_ = degree_to_vector_numba
-    vector_to_degree_ = vector_to_degree_numba
-    normalize_point_ = normalize_point_numba
-
     if should_return_iterative:
         print("[WARNING] Numba Version can't return a iterative version.")
 
@@ -2016,7 +1992,7 @@ def trace_beam_numba(abs_position,
         current_ray_line = List.empty_list(TYPE_POINT_FLOAT)
 
         if should_scale:
-            p = normalize_point_(x=cur_target_abs_position[0],
+            p = normalize_point_numba(x=cur_target_abs_position[0],
                                  y=cur_target_abs_position[1],
                                  width=IMG_WIDTH,
                                  height=IMG_HEIGHT)
@@ -2064,11 +2040,11 @@ def trace_beam_numba(abs_position,
                         max_width=IMG_WIDTH,
                         max_height=IMG_HEIGHT
                     )
-                    new_direction = calc_reflection_(
-                        collide_vector=degree_to_vector_(cur_direction_in_degree),
+                    new_direction = calc_reflection_numba(
+                        collide_vector=degree_to_vector_numba(cur_direction_in_degree),
                         wall_vector=wall_vector
                     )
-                    new_direction_in_degree = vector_to_degree_(new_direction[0], new_direction[1])
+                    new_direction_in_degree = vector_to_degree_numba(new_direction[0], new_direction[1])
 
                     cur_target_abs_position = last_abs_position
                     cur_direction_in_degree = float(new_direction_in_degree)
@@ -2090,20 +2066,20 @@ def trace_beam_numba(abs_position,
                 if building_angle == inf_val:
                     raise Exception("Got inf value from Wall-Map.")
 
-                wall_vector = degree_to_vector_(building_angle)
+                wall_vector = degree_to_vector_numba(building_angle)
 
-                new_direction = calc_reflection_(
-                    collide_vector=degree_to_vector_(cur_direction_in_degree),
+                new_direction = calc_reflection_numba(
+                    collide_vector=degree_to_vector_numba(cur_direction_in_degree),
                     wall_vector=wall_vector
                 )
-                new_direction_in_degree = vector_to_degree_(new_direction[0], new_direction[1])
+                new_direction_in_degree = vector_to_degree_numba(new_direction[0], new_direction[1])
 
                 cur_target_abs_position = last_abs_position
                 cur_direction_in_degree = float(new_direction_in_degree)
                 break
             else:
                 if should_scale:
-                    p = normalize_point_(x=x, y=y, width=IMG_WIDTH, height=IMG_HEIGHT)
+                    p = normalize_point_numba(x=x, y=y, width=IMG_WIDTH, height=IMG_HEIGHT)
                     current_ray_line.append((float(p[0]), float(p[1])))
                 else:
                     current_ray_line.append((x, y))
@@ -2123,7 +2099,7 @@ def trace_beam_with_DDA_numba(abs_position,
                                 reflexion_order=3,
                                 should_scale=True,
                                 should_return_iterative=False,
-                                use_numba_compilation=False):
+                                remove_iterative=True):
     """
     Trace a ray (beam) through a 2D image using a DDA (Digital Differential Analyzer)
     algorithm with precise collision points and physically accurate reflections.
@@ -2159,20 +2135,14 @@ def trace_beam_with_DDA_numba(abs_position,
         Otherwise absolute pixel positions are returned. Default: True.
     - should_return_iterative (bool, optional): <br>
         Whether to return a RayIterator for step-by-step analysis (default: False).
-    - use_numba_compilation (bool, optional):<br>
-        Whether to use the compiled (to machine code) version of compute heavy functions.
+    - remove_iterative (bool, optional): <br>
+        Ignored in this numba version.
 
     Returns:
     - list: 
         Nested list structure representing the traced ray and its reflections. 
         Format: ray[beam][point] = (x, y)
     """
-    # numba optimization -> change function locally
-    calc_reflection_ = calc_reflection_numba
-    degree_to_vector_ = degree_to_vector_numba
-    vector_to_degree_ = vector_to_degree_numba
-    normalize_point_ = normalize_point_numba
-
     if should_return_iterative:
         print("[WARNING] Numba Version can't return a iterative version.")
 
@@ -2189,7 +2159,7 @@ def trace_beam_with_DDA_numba(abs_position,
     # go through every reflection -> will early stop if hitting a wall (if wall-bouncing is deactivated)
     for cur_depth in range(reflexion_order):
         if should_scale:
-            current_ray_line = [normalize_point_(x=cur_target_abs_position[0], y=cur_target_abs_position[1], width=IMG_WIDTH, height=IMG_HEIGHT)]
+            current_ray_line = [normalize_point_numba(x=cur_target_abs_position[0], y=cur_target_abs_position[1], width=IMG_WIDTH, height=IMG_HEIGHT)]
         else:
             current_ray_line = [(cur_target_abs_position[0], cur_target_abs_position[1])]
 
@@ -2215,8 +2185,8 @@ def trace_beam_with_DDA_numba(abs_position,
             ray.append(current_ray_line)
             if img_border_also_collide:
                 wall_vector = get_img_border_vector_numba(position=(x0, y0), max_width=IMG_WIDTH, max_height=IMG_HEIGHT)
-                new_direction = calc_reflection_(collide_vector=degree_to_vector_(cur_direction_in_degree), wall_vector=wall_vector)
-                cur_direction_in_degree = vector_to_degree_(new_direction[0], new_direction[1])
+                new_direction = calc_reflection_numba(collide_vector=degree_to_vector_numba(cur_direction_in_degree), wall_vector=wall_vector)
+                cur_direction_in_degree = vector_to_degree_numba(new_direction[0], new_direction[1])
                 cur_target_abs_position = last_abs_position
                 continue
             else:
@@ -2264,7 +2234,7 @@ def trace_beam_with_DDA_numba(abs_position,
                 hit_x = x0
                 hit_y = y0
                 if should_scale:
-                    current_ray_line.append(normalize_point_(x=hit_x, y=hit_y, width=IMG_WIDTH, height=IMG_HEIGHT))
+                    current_ray_line.append(normalize_point_numba(x=hit_x, y=hit_y, width=IMG_WIDTH, height=IMG_HEIGHT))
                 else:
                     current_ray_line.append((hit_x, hit_y))
                 ray.append(current_ray_line)
@@ -2272,9 +2242,9 @@ def trace_beam_with_DDA_numba(abs_position,
                 building_angle = float(wall_map[cell_y, cell_x])
                 if not np.isfinite(building_angle):
                     raise Exception("Got non-finite value from Wall-Map.")
-                wall_vector = degree_to_vector_(building_angle)
-                new_direction = calc_reflection_(collide_vector=degree_to_vector_(cur_direction_in_degree), wall_vector=wall_vector)
-                cur_direction_in_degree = vector_to_degree_(new_direction[0], new_direction[1])
+                wall_vector = degree_to_vector_numba(building_angle)
+                new_direction = calc_reflection_numba(collide_vector=degree_to_vector_numba(cur_direction_in_degree), wall_vector=wall_vector)
+                cur_direction_in_degree = vector_to_degree_numba(new_direction[0], new_direction[1])
                 ndx, ndy = new_direction[0], new_direction[1]
                 cur_target_abs_position = (hit_x + ndx * 1e-3, hit_y + ndy * 1e-3)
                 continue
@@ -2304,7 +2274,7 @@ def trace_beam_with_DDA_numba(abs_position,
             # For recording the traversal we can append intermediate cell centers encountered so far.
             # But more importantly, append the collision point to the current segment BEFORE storing it.
             if should_scale:
-                current_ray_line.append(normalize_point_(x=hit_x, y=hit_y, width=IMG_WIDTH, height=IMG_HEIGHT))
+                current_ray_line.append(normalize_point_numba(x=hit_x, y=hit_y, width=IMG_WIDTH, height=IMG_HEIGHT))
             else:
                 current_ray_line.append((hit_x, hit_y))
 
@@ -2315,8 +2285,8 @@ def trace_beam_with_DDA_numba(abs_position,
 
                 if img_border_also_collide:
                     wall_vector = get_img_border_vector_numba(position=(cell_x, cell_y), max_width=IMG_WIDTH, max_height=IMG_HEIGHT)
-                    new_direction = calc_reflection_(collide_vector=degree_to_vector_(cur_direction_in_degree), wall_vector=wall_vector)
-                    new_direction_in_degree = vector_to_degree_(new_direction[0], new_direction[1])
+                    new_direction = calc_reflection_numba(collide_vector=degree_to_vector_numba(cur_direction_in_degree), wall_vector=wall_vector)
+                    new_direction_in_degree = vector_to_degree_numba(new_direction[0], new_direction[1])
                     # start next ray from last in-image position (hit_x, hit_y) nudged slightly
                     ndx, ndy = new_direction[0], new_direction[1]
                     cur_target_abs_position = (hit_x + ndx * 1e-3, hit_y + ndy * 1e-3)
@@ -2336,10 +2306,10 @@ def trace_beam_with_DDA_numba(abs_position,
                 building_angle = float(wall_map[cell_y, cell_x])
                 if not np.isfinite(building_angle):
                     raise Exception("Got non-finite value from Wall-Map.")
-                wall_vector = degree_to_vector_(building_angle)
+                wall_vector = degree_to_vector_numba(building_angle)
 
-                new_direction = calc_reflection_(collide_vector=degree_to_vector_(cur_direction_in_degree), wall_vector=wall_vector)
-                new_direction_in_degree = vector_to_degree_(new_direction[0], new_direction[1])
+                new_direction = calc_reflection_numba(collide_vector=degree_to_vector_numba(cur_direction_in_degree), wall_vector=wall_vector)
+                new_direction_in_degree = vector_to_degree_numba(new_direction[0], new_direction[1])
 
                 # start next beam from collision point nudged outwards
                 ndx, ndy = new_direction[0], new_direction[1]
