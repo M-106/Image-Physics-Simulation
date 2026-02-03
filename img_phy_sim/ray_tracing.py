@@ -1270,6 +1270,7 @@ def trace_beams(rel_position,
                 iterative_tracking=False,
                 iterative_steps=None,
                 parallelization=0,
+                parallelization_method="processes",  # "threads", "processes"
                 use_numba_compilation=False,
                 ignore_iterative_optimization=True):
     """
@@ -1304,6 +1305,10 @@ def trace_beams(rel_position,
         Whether to return a RayIterator for step-by-step analysis (default: False).
     - iterative_steps (int, optional):<br>
         Number of steps for iterative reduction if using iterative tracking. `None` for all steps.
+    - parallelization (int, optional):<br>
+        The amount of workers for parallelization. 0 for no parallelization, -1 for max amount of workers.
+    - parallelization_method (str, optional):<br>
+        Method to use for parallelization (as soft condition) -> "threads" or "processes"
     - use_numba_compilation (bool, optional):<br>
         Whether to use the compiled (to machine code) version of compute heavy functions.
     - ignore_iterative_optimization (bool, optional): <br>
@@ -1379,8 +1384,8 @@ def trace_beams(rel_position,
                 rays.append(cur_ray_result)
     else:
         result_rays = Parallel(n_jobs=parallelization, 
-                                backend="threading" if use_numba_compilation else "loky",     # process-based
-                                prefer="threads" if use_numba_compilation else "processes",
+                                # backend="threading" if use_numba_compilation else "loky",     # process-based
+                                prefer="threads" if use_numba_compilation else parallelization_method,
                                 return_as="generator",
                                 batch_size=1        # because of unequal ray lengths
                                 )(
@@ -1680,6 +1685,7 @@ def trace_and_draw_rays(rel_position,
                         iterative_tracking=False,
                         iterative_steps=None,
                         parallelization=0,
+                        parallelization_method="processes",  # "threads", "processes"
                         use_numba_compilation=False,
                         ignore_iterative_optimization=True,
                         detail_draw=True,
@@ -1725,6 +1731,10 @@ def trace_and_draw_rays(rel_position,
         Whether to return a RayIterator for step-by-step analysis (default: False).
     - iterative_steps (int, optional):<br>
         Number of steps for iterative reduction if using iterative tracking. `None` for all steps.
+    - parallelization (int, optional):<br>
+        The amount of workers for parallelization. 0 for no parallelization, -1 for max amount of workers.
+    - parallelization_method (str, optional):<br>
+        Method to use for parallelization (as soft condition) -> "threads" or "processes"
     - use_numba_compilation (bool, optional):<br>
         Whether to use the compiled (to machine code) version of compute heavy functions.
     - ignore_iterative_optimization (bool, optional): <br>
@@ -1772,6 +1782,7 @@ def trace_and_draw_rays(rel_position,
                         iterative_tracking=iterative_tracking,
                         iterative_steps=iterative_steps,
                         parallelization=parallelization,
+                        parallelization_method=parallelization_method,
                         use_numba_compilation=use_numba_compilation,
                         ignore_iterative_optimization=ignore_iterative_optimization)
     
