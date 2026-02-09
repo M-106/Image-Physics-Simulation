@@ -149,6 +149,7 @@ Tobia Ippolito, 2025
 # >>> Imports <<<
 # ---------------
 from __future__ import annotations
+from functools import cache
 
 from .math import normalize_point
 
@@ -159,11 +160,9 @@ from typing import List, Tuple, Optional, Iterable
 import numpy as np
 import cv2
 
-try:
-    from joblib import Parallel, delayed
-except Exception:
-    Parallel = None
-    delayed = None
+# optimization
+from joblib import Parallel, delayed
+import numba
 
 
 
@@ -178,6 +177,17 @@ def reflect_point_across_infinite_line(P: Tuple[float, float], A: Tuple[float, f
     Computes the mirror image of point P with respect to the infinite line
     passing through points A and B.
 
+                  P
+                  *
+                   \
+                    \
+    -----------------*----------------   Wand (A-B)
+                    proj
+                      \
+                       \
+                        *
+                        P'
+
     Parameters:
     - P (Tuple[float, float]): <br>
         The point to reflect (x, y).
@@ -190,27 +200,96 @@ def reflect_point_across_infinite_line(P: Tuple[float, float], A: Tuple[float, f
     - Tuple[float, float]: <br>
         The reflected point (x, y) as floats.
     """
+    # var setup
+    #    -> A/B are both points on the wall
+    #    -> P is the point we want to mirror (not receiver, source ,...)
     x1, y1 = A
     x2, y2 = B
     px, py = P
 
+    # get direction of the wall
+    #    -> from point to the wall
     ABx = x2 - x1
     ABy = y2 - y1
+    # norm this wall direction
     n = math.hypot(ABx, ABy) + 1e-12
     ux, uy = ABx / n, ABy / n
 
+    # direction/vector from the wall to the point
     APx = px - x1
     APy = py - y1
 
-    # projection of AP onto AB unit direction
+    # projection of point to wall direction to the wall direction
+    #   -> finding sweetspot where we are directly under P on wall line/direction
     t = APx * ux + APy * uy
+    # point on wall direction/line which is directly under P
     projx = x1 + t * ux
     projy = y1 + t * uy
 
-    # reflection
+    # calc reflection/mirror
     rx = projx + (projx - px)
     ry = projy + (projy - py)
+
     return (float(rx), float(ry))
+
+
+
+@numba.njit(cache=True, fastmath=True)
+def reflect_point_across_infinite_line_numba(px, py, ax, ay, bx, by):
+    """
+    Reflect a 2D point across an infinite line defined by two points.
+
+    Computes the mirror image of point P = (px, py) with respect to the
+    infinite line passing through A = (ax, ay) and B = (bx, by).
+    The function first projects P orthogonally onto the line AB to obtain
+    the foot point (projection), and then reflects P across this point
+    using the relation:
+
+        P' = 2 * proj - P
+
+    This implementation is written in a Numba-friendly style and avoids
+    expensive operations such as `math.hypot`, using only basic arithmetic
+    and a square root for normalization.
+
+    Parameters:
+    - px (float): <br>
+        x-coordinate of the point to reflect.
+    - py (float): <br>
+        y-coordinate of the point to reflect.
+    - ax (float): <br>
+        x-coordinate of the first point defining the line.
+    - ay (float): <br>
+        y-coordinate of the first point defining the line.
+    - bx (float): <br>
+        x-coordinate of the second point defining the line.
+    - by (float): <br>
+        y-coordinate of the second point defining the line.
+
+    Returns:
+    - Tuple[float, float]: <br>
+        The reflected point (rx, ry) across the infinite line AB.
+    """
+    abx = bx - ax
+    aby = by - ay
+
+    # avoid hypot for speed + numba friendliness
+    n = math.sqrt(abx * abx + aby * aby) + 1e-12
+    ux = abx / n
+    uy = aby / n
+
+    apx = px - ax
+    apy = py - ay
+
+    # projection parameter on unit direction
+    t = apx * ux + apy * uy
+    projx = ax + t * ux
+    projy = ay + t * uy
+
+    # reflection: P' = 2*proj - P
+    rx = 2.0 * projx - px
+    ry = 2.0 * projy - py
+
+    return rx, ry
 
 
 
@@ -239,6 +318,212 @@ def reflection_map_to_img(reflection_map):
 # -----------------------------------------
 # >>> Segment representation & geometry <<<
 # -----------------------------------------
+
+@numba.njit(cache=True, fastmath=True)
+def seg_seg_intersection_xy(x1, y1, x2, y2, x3, y3, x4, y4, eps=1e-9):
+    """
+    Compute the intersection point of two 2D line segments.
+
+    Determines whether the segment P1→P2 intersects with the segment Q1→Q2.
+    The computation is performed using a parametric form and 2D cross products.
+    If a unique intersection point exists within both segment bounds
+    (including small numerical tolerances), the intersection coordinates are
+    returned together with a success flag.
+
+    Parallel or colinear segments are treated as non-intersecting for the
+    purposes of the Image Source Model, since such cases are ambiguous for
+    specular reflection path construction.
+
+    Parameters:
+    - x1 (float): <br>
+        x-coordinate of the first endpoint of segment P.
+    - y1 (float): <br>
+        y-coordinate of the first endpoint of segment P.
+    - x2 (float): <br>
+        x-coordinate of the second endpoint of segment P.
+    - y2 (float): <br>
+        y-coordinate of the second endpoint of segment P.
+    - x3 (float): <br>
+        x-coordinate of the first endpoint of segment Q.
+    - y3 (float): <br>
+        y-coordinate of the first endpoint of segment Q.
+    - x4 (float): <br>
+        x-coordinate of the second endpoint of segment Q.
+    - y4 (float): <br>
+        y-coordinate of the second endpoint of segment Q.
+    - eps (float): <br>
+        Numerical tolerance used to handle floating point inaccuracies
+        when testing for parallelism and segment bounds.
+
+    Returns:
+    - Tuple[float, float, bool]: <br>
+        (ix, iy, ok) where (ix, iy) is the intersection point if one exists,
+        and `ok` indicates whether a valid intersection was found.
+    """
+    # r = p1->p2, s = q1->q2
+    rx = x2 - x1
+    ry = y2 - y1
+    sx = x4 - x3
+    sy = y4 - y3
+
+    rxs = rx * sy - ry * sx
+    qpx = x3 - x1
+    qpy = y3 - y1
+    qpxr = qpx * ry - qpy * rx
+
+    if abs(rxs) <= eps:
+        # parallel or colinear -> treat as invalid for your ISM
+        return 0.0, 0.0, False
+
+    t = (qpx * sy - qpy * sx) / rxs
+    u = (qpx * ry - qpy * rx) / rxs
+
+    if (-eps <= t <= 1.0 + eps) and (-eps <= u <= 1.0 + eps):
+        ix = x1 + t * rx
+        iy = y1 + t * ry
+        return ix, iy, True
+
+    return 0.0, 0.0, False
+
+
+
+# -------------------------------
+# >>> Raster-based visibility <<<
+# -------------------------------
+
+@numba.njit(cache=True, fastmath=True)
+def is_visible_raster(p1x:float, p1y:float, p2x:float, p2y:float, occ:np.ndarray, ignore_ends:int=1) -> bool:
+    """
+    Check line-of-sight visibility between two points using a raster occlusion map.
+
+    This function traces a discrete line between two pixel positions using
+    Bresenham's line algorithm and tests whether any raster cell along this
+    line is marked as occluded in the provided occlusion map `occ`.
+    The algorithm operates entirely in integer pixel space and is written in
+    a Numba-friendly style without temporary allocations.
+
+    To allow valid reflection paths that touch wall endpoints, a configurable
+    number of pixels at the start and end of the line can be ignored via
+    `ignore_ends`. This prevents false occlusion detections when rays start
+    or end directly on wall pixels.
+
+    The Bresenham traversal is executed twice:
+    1. First pass: counts the number of raster points along the line to
+    determine the valid range after removing the ignored endpoints.
+    2. Second pass: checks only the relevant interior pixels for occlusion.
+
+    Taken from https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm -> last code shown on the website.
+
+    Parameters:
+    - p1x (float): <br>
+        x-coordinate of the start point in pixel space.
+    - p1y (float): <br>
+        y-coordinate of the start point in pixel space.
+    - p2x (float): <br>
+        x-coordinate of the end point in pixel space.
+    - p2y (float): <br>
+        y-coordinate of the end point in pixel space.
+    - occ (np.ndarray): <br>
+        Occlusion map where nonzero values represent blocked pixels.
+        Expected indexing is `occ[y, x]`.
+    - ignore_ends (int): <br>
+        Number of raster pixels to ignore at both ends of the line.
+
+    Returns:
+    - bool: <br>
+        True if the path between the two points is free of occlusions,
+        otherwise False.
+    """
+    H = occ.shape[0]
+    W = occ.shape[1]
+
+    # round always up -> so + 0.5
+    x0 = int(p1x + 0.5)
+    y0 = int(p1y + 0.5)
+    x1 = int(p2x + 0.5)
+    y1 = int(p2y + 0.5)
+
+    # clamp endpoints -> should be inside
+    if x0 < 0: x0 = 0
+    if x0 >= W: x0 = W - 1
+    if y0 < 0: y0 = 0
+    if y0 >= H: y0 = H - 1
+    if x1 < 0: x1 = 0
+    if x1 >= W: x1 = W - 1
+    if y1 < 0: y1 = 0
+    if y1 >= H: y1 = H - 1
+
+    # preperation for breseham algorithm
+    # err -> accumulator to decide to go in x or y direction
+    dx = abs(x1 - x0)
+    dy = abs(y1 - y0)
+
+    sx = 1 if x0 < x1 else -1
+    sy = 1 if y0 < y1 else -1
+
+    err = dx - dy
+
+    # 1. calc length (amount of grid points -> for ignore ends
+    # => count grid points between the 2 points
+    # => later we can then say ignore the first and last N pixels
+    tx, ty = x0, y0
+    terr = err
+    npts = 1
+    while not (tx == x1 and ty == y1):
+        # bresenham algorithm to move in pixel-space
+        e2 = terr * 2
+        if e2 > -dy:
+            terr -= dy
+            tx += sx
+        if e2 < dx:
+            terr += dx
+            ty += sy
+        # increase grid points
+        npts += 1
+
+    # not enough grid points -> visible!
+    # only start and end point, there cant be something in between
+    if npts <= 2:
+        return True
+
+    # if the ignore parts is cut away
+    # is there even something left to check?
+    start_i = ignore_ends
+    end_i = npts - ignore_ends
+    if start_i >= end_i:
+        return True
+    
+    # 2. run again -> but this time check occlusion
+    tx, ty = x0, y0
+    terr = err
+    i = 0
+    while True:
+        if i >= start_i and i < end_i:
+            # wall between detected?
+            if occ[ty, tx] != 0:
+                return False
+
+        # end of line reached?
+        if tx == x1 and ty == y1:
+            break
+
+        # breseham -> continue line
+        e2 = terr * 2
+        if e2 > -dy:
+            terr -= dy
+            tx += sx
+        if e2 < dx:
+            terr += dx
+            ty += sy
+
+        i += 1
+
+    return True
+
+
+# -------------------------------------
+# >>> Wall extraction from an image <<<
+# -------------------------------------
 
 @dataclass(frozen=True)
 class Segment:
@@ -272,189 +557,140 @@ class Segment:
     def B(self): return (self.bx, self.by)
 
 
-def _seg_seg_intersection(p0, p1, q0, q1, eps=1e-9) -> Optional[Tuple[float, float]]:
-    """
-    Compute the intersection point of two 2D line segments.
 
-    Computes the intersection point of segment p0->p1 with segment q0->q1.
-    If there is exactly one intersection point (including endpoint touches),
-    it returns that point. If segments do not intersect, are parallel, or
-    are colinear/overlapping (ambiguous), it returns None.
+@numba.njit(cache=True, fastmath=True)
+def _max_u8(img_u8):
+    m = 0
+    H, W = img_u8.shape[0], img_u8.shape[1]
+    for y in range(H):
+        for x in range(W):
+            v = int(img_u8[y, x])
+            if v > m:
+                m = v
+    return m
+
+
+
+@numba.njit(cache=True, fastmath=True)
+def build_wall_mask_numba_no_values(img_u8):
+    """
+    Build a 0/255 wall mask from a uint8 image when no explicit wall values are given.
+
+    This function assumes that the input image is already mask-like. If the
+    maximum pixel value is small (e.g. < 64), the image is treated as a
+    binary or low-range mask and scaled to the range {0, 255}. Otherwise,
+    the values are copied directly, assuming the image already represents
+    a proper wall mask.
+
+    The implementation is written in a Numba-friendly style and operates
+    purely with explicit loops for maximum compatibility and performance.
 
     Parameters:
-    - p0 (Tuple[float, float]): <br>
-        Start point of the first segment.
-    - p1 (Tuple[float, float]): <br>
-        End point of the first segment.
-    - q0 (Tuple[float, float]): <br>
-        Start point of the second segment.
-    - q1 (Tuple[float, float]): <br>
-        End point of the second segment.
-    - eps (float): <br>
-        Numerical tolerance used for parallel/colinear checks and bounds.
+    - img_u8 (np.ndarray): <br>
+        2D uint8 image interpreted as a mask-like input.
 
     Returns:
-    - Optional[Tuple[float, float]]: <br>
-        The intersection point (x, y) if a unique intersection exists,
-        otherwise None.
+    - np.ndarray: <br>
+        A uint8 wall mask with values 0 (free space) and 255 (wall).
     """
-    x1, y1 = p0
-    x2, y2 = p1
-    x3, y3 = q0
-    x4, y4 = q1
+    # img_u8: uint8 2D
+    H, W = img_u8.shape[0], img_u8.shape[1]
+    m = _max_u8(img_u8)
+    out = np.empty((H, W), dtype=np.uint8)
 
-    # Solve via cross products (parametric)
-    r = (x2 - x1, y2 - y1)
-    s = (x4 - x3, y4 - y3)
-
-    rxs = r[0] * s[1] - r[1] * s[0]
-    q_p = (x3 - x1, y3 - y1)
-    qpxr = q_p[0] * r[1] - q_p[1] * r[0]
-
-    if abs(rxs) <= eps:
-        # parallel
-        if abs(qpxr) <= eps:
-            # colinear -> ambiguous for specular ISM here
-            return None
-        return None
-
-    t = (q_p[0] * s[1] - q_p[1] * s[0]) / rxs
-    u = (q_p[0] * r[1] - q_p[1] * r[0]) / rxs
-
-    if -eps <= t <= 1.0 + eps and -eps <= u <= 1.0 + eps:
-        ix = x1 + t * r[0]
-        iy = y1 + t * r[1]
-        return (float(ix), float(iy))
-
-    return None
+    if m < 64:
+        # treat as 0/1-ish mask -> scale to 0/255
+        for y in range(H):
+            for x in range(W):
+                out[y, x] = 255 if img_u8[y, x] != 0 else 0
+    else:
+        # already 0/255 or label-like uint8 -> just copy
+        for y in range(H):
+            for x in range(W):
+                out[y, x] = img_u8[y, x]
+    return out
 
 
 
-# -------------------------------
-# >>> Raster-based visibility <<<
-# -------------------------------
-
-def _bresenham_points(x0: int, y0: int, x1: int, y1: int) -> Iterable[Tuple[int, int]]:
+@numba.njit(cache=True, fastmath=True)
+def build_wall_mask_numba_values(img_u8, wall_values_i32):
     """
-    Generate integer pixel coordinates along a line using Bresenham's algorithm.
+    Build a 0/255 wall mask from a uint8 image using explicit wall label values.
 
-    Produces all grid points (x, y) visited by the Bresenham line rasterization
-    algorithm between (x0, y0) and (x1, y1), inclusive.
+    Each pixel in the input image is compared against a list of wall label
+    values. If a pixel matches any of the provided values, it is marked as
+    a wall (255), otherwise it is marked as free space (0).
+
+    This replaces the typical `np.isin` operation with explicit loops to
+    remain fully compatible with Numba's nopython mode.
 
     Parameters:
-    - x0 (int): <br>
-        Start x coordinate.
-    - y0 (int): <br>
-        Start y coordinate.
-    - x1 (int): <br>
-        End x coordinate.
-    - y1 (int): <br>
-        End y coordinate.
+    - img_u8 (np.ndarray): <br>
+        2D uint8 image containing label values.
+    - wall_values_i32 (np.ndarray): <br>
+        1D array of int32 values that should be interpreted as walls.
 
     Returns:
-    - Iterable[Tuple[int, int]]: <br>
-        An iterator over (x, y) integer points along the rasterized line.
+    - np.ndarray: <br>
+        A uint8 wall mask with values 0 (free space) and 255 (wall).
     """
-    dx = abs(x1 - x0)
-    dy = abs(y1 - y0)
-    sx = 1 if x0 < x1 else -1
-    sy = 1 if y0 < y1 else -1
-    err = dx - dy
-    x, y = x0, y0
-    while True:
-        yield (x, y)
-        if x == x1 and y == y1:
-            break
-        e2 = 2 * err
-        if e2 > -dy:
-            err -= dy
-            x += sx
-        if e2 < dx:
-            err += dx
-            y += sy
+    # img_u8: uint8 2D
+    # wall_values_i32: int32 1D, e.g. np.array([3,7,9], np.int32)
+    H, W = img_u8.shape[0], img_u8.shape[1]
+    out = np.empty((H, W), dtype=np.uint8)
+    nvals = wall_values_i32.shape[0]
+
+    for y in range(H):
+        for x in range(W):
+            v = int(img_u8[y, x])
+            is_wall = False
+            for k in range(nvals):
+                if v == int(wall_values_i32[k]):
+                    is_wall = True
+                    break
+            out[y, x] = 255 if is_wall else 0
+    return out
 
 
-def is_visible_raster(p1: Tuple[float, float], p2: Tuple[float, float], occ: np.ndarray, ignore_ends: int = 1) -> bool:
-    """
-    Test line-of-sight visibility between two points using a raster occlusion map.
-
-    Uses Bresenham line traversal between p1 and p2 and checks whether any sampled
-    pixel is marked as occluded in `occ`. Optionally ignores a number of pixels
-    at both ends of the ray, which is useful to allow rays to touch wall endpoints.
-
-    Parameters:
-    - p1 (Tuple[float, float]): <br>
-        Start point (x, y) in pixel coordinates.
-    - p2 (Tuple[float, float]): <br>
-        End point (x, y) in pixel coordinates.
-    - occ (np.ndarray): <br>
-        Occlusion map where nonzero values indicate blocked pixels.
-        Expected shape is (H, W) or compatible indexing occ[y, x].
-    - ignore_ends (int): <br>
-        Number of pixels to ignore at both ends of the sampled line.
-
-    Returns:
-    - bool: <br>
-        True if the line between p1 and p2 is not occluded, otherwise False.
-    """
-    H, W = occ.shape[:2]
-    x0, y0 = int(round(p1[0])), int(round(p1[1]))
-    x1, y1 = int(round(p2[0])), int(round(p2[1]))
-
-    # clamp endpoints
-    x0 = max(0, min(W - 1, x0))
-    y0 = max(0, min(H - 1, y0))
-    x1 = max(0, min(W - 1, x1))
-    y1 = max(0, min(H - 1, y1))
-
-    pts = list(_bresenham_points(x0, y0, x1, y1))
-    if len(pts) <= 2:
-        return True
-
-    a = ignore_ends
-    b = len(pts) - ignore_ends
-    if a >= b:
-        return True
-
-    for (x, y) in pts[a:b]:
-        if occ[y, x] != 0:
-            return False
-    return True
-
-
-# -------------------------------------
-# >>> Wall extraction from an image <<<
-# -------------------------------------
 
 def build_wall_mask(img: np.ndarray, wall_values=None) -> np.ndarray:
     """
     Build a 0/255 wall mask from an input image.
 
-    If `wall_values` is provided, pixels in `img` that match any of those values
-    are marked as walls (255) and the rest as free space (0). If `wall_values`
-    is None, the function assumes `img` is already mask-like and converts it
-    to uint8 and optionally scales low-range masks to 0/255.
+    This function acts as a Python wrapper that prepares the input data and
+    delegates the actual computation to Numba-optimized kernels.
+
+    If `wall_values` is None, the image is assumed to be mask-like and
+    processed accordingly. Otherwise, the provided label values are used
+    to determine which pixels represent walls.
+
+    The input image must be two-dimensional. If it is not of type uint8,
+    it is converted before processing.
 
     Parameters:
     - img (np.ndarray): <br>
-        Input image. Can be a label image, grayscale mask, or wall mask source.
+        2D input image representing either a mask-like image or a label map.
     - wall_values (optional): <br>
-        Values in `img` that should be interpreted as walls. Typically a list
-        or tuple of labels. If None, `img` is treated as a mask-like image.
+        Iterable of label values that should be interpreted as walls.
 
     Returns:
     - np.ndarray: <br>
-        A uint8 wall mask with values 0 (free) and 255 (wall).
+        A uint8 wall mask with values 0 (free space) and 255 (wall).
     """
-    if wall_values is not None:
-        mask = (np.isin(img, wall_values).astype(np.uint8) * 255)
+    if img.ndim != 2:
+        raise ValueError("build_wall_mask: erwartet 2D img (H,W). RGB vorher konvertieren.")
+
+    if img.dtype != np.uint8:
+        img_u8 = img.astype(np.uint8)
     else:
-        mask = img
-        if mask.dtype != np.uint8:
-            mask = mask.astype(np.uint8)
-        if np.max(mask) < 64:
-            mask = (mask.astype(np.uint8) * 255)
-    return mask
+        img_u8 = img
+
+    if wall_values is None:
+        return build_wall_mask_numba_no_values(img_u8)
+
+    wall_vals = np.asarray(wall_values, dtype=np.int32)
+    return build_wall_mask_numba_values(img_u8, wall_vals)
+
 
 
 def get_wall_segments_from_mask(mask_255: np.ndarray, thickness: int = 1, approx_epsilon: float = 1.5) -> List[Segment]:
@@ -509,30 +745,155 @@ def get_wall_segments_from_mask(mask_255: np.ndarray, thickness: int = 1, approx
     return walls
 
 
-def build_occlusion_from_wallmask(mask_255: np.ndarray, wall_thickness: int = 1) -> np.ndarray:
-    """
-    Build a binary occlusion map from a wall mask.
 
-    Converts a 0/255 wall mask into a binary map (0/1). Optionally dilates
-    the walls to increase effective thickness for visibility checks.
+def segments_to_walls4(walls):
+    """
+    Convert a list of wall segments into a compact float32 array representation.
+
+    Transforms a Python list of `Segment` objects (with endpoints ax/ay and bx/by)
+    into a contiguous NumPy array of shape (N, 4), where each row encodes one wall
+    segment as:
+
+        [ax, ay, bx, by]
+
+    This representation is convenient for passing wall geometry into Numba-compiled
+    kernels, which cannot efficiently work with Python objects or dataclasses.
 
     Parameters:
-    - mask_255 (np.ndarray): <br>
-        Wall mask with values 0 and 255.
-    - wall_thickness (int): <br>
-        If > 1, dilates the occlusion map using a square kernel to thicken walls.
+    - walls (List[Segment]): <br>
+        A list of wall segments represented as `Segment` objects.
 
     Returns:
     - np.ndarray: <br>
-        Binary occlusion map of dtype uint8 with values:
+        A float32 array of shape (N, 4) containing wall endpoints.
+    """
+    walls4 = np.empty((len(walls), 4), dtype=np.float32)
+
+    for i, w in enumerate(walls):
+        walls4[i,0] = w.ax 
+        walls4[i,1] = w.ay
+        walls4[i,2] = w.bx
+        walls4[i,3] = w.by
+
+    return walls4
+
+
+
+@numba.njit(cache=True, fastmath=True)
+def dilate_binary_square(src, k):
+    """
+    Perform binary dilation using a square structuring element.
+
+    Dilates a binary image `src` (values 0/1) using a kxk square kernel for a
+    single iteration. A pixel in the output is set to 1 if any pixel in its
+    kxk neighborhood in the input is nonzero.
+
+    This implementation is written in a Numba-friendly style (explicit loops,
+    no OpenCV dependency) and is useful for thickening walls in an occlusion map.
+
+    Parameters:
+    - src (np.ndarray): <br>
+        2D uint8 array containing binary values {0, 1}.
+    - k (int): <br>
+        Kernel size (wall thickness). Values <= 1 return a copy of `src`.
+
+    Returns:
+    - np.ndarray: <br>
+        A uint8 binary array (0/1) of the same shape as `src` after dilation.
+    """
+    # src: uint8 0/1
+    # k: wall_thickness (>=1)
+    if k <= 1:
+        return src.copy()
+
+    H, W = src.shape[0], src.shape[1]
+    r = k // 2
+    out = np.zeros((H, W), dtype=np.uint8)
+
+    for y in range(H):
+        y0 = y - r
+        y1 = y + r
+        if y0 < 0: y0 = 0
+        if y1 >= H: y1 = H - 1
+
+        for x in range(W):
+            x0 = x - r
+            x1 = x + r
+            if x0 < 0: x0 = 0
+            if x1 >= W: x1 = W - 1
+
+            # if any neighbor is 1 -> out = 1
+            found = 0
+            for yy in range(y0, y1 + 1):
+                for xx in range(x0, x1 + 1):
+                    if src[yy, xx] != 0:
+                        found = 1
+                        break
+                if found == 1:
+                    break
+            out[y, x] = found
+    return out
+
+
+
+@numba.njit(cache=True, fastmath=True)
+def apply_mask_to_binary(mask_255):
+    """
+    Convert a 0/255 wall mask into a binary occlusion map.
+
+    Creates a binary occlusion map from a wall mask where nonzero pixels indicate
+    walls. The output contains 0 for free space and 1 for occluded pixels.
+
+    This function is implemented using explicit loops for Numba compatibility.
+
+    Parameters:
+    - mask_255 (np.ndarray): <br>
+        2D uint8 wall mask, typically with values {0, 255}.
+
+    Returns:
+    - np.ndarray: <br>
+        A uint8 binary array of shape (H, W) with values:
         - 0 for free space
         - 1 for occluded (wall) pixels
     """
-    occ = (mask_255 > 0).astype(np.uint8)
-    if wall_thickness and wall_thickness > 1:
-        k = np.ones((wall_thickness, wall_thickness), np.uint8)
-        occ = cv2.dilate(occ, k, iterations=1)
-        occ = (occ > 0).astype(np.uint8)
+    H, W = mask_255.shape[0], mask_255.shape[1]
+    occ = np.empty((H, W), dtype=np.uint8)
+    for y in range(H):
+        for x in range(W):
+            occ[y, x] = 1 if mask_255[y, x] != 0 else 0
+    return occ
+
+
+
+@numba.njit(cache=True, fastmath=True)
+def build_occlusion_from_wallmask(mask_255, wall_thickness=1):
+    """
+    Build a binary occlusion map from a 0/255 wall mask, with optional wall dilation.
+
+    First converts the input wall mask (0/255) into a binary occlusion map (0/1).
+    If `wall_thickness` is greater than 1, the binary map is dilated using a
+    square kernel to increase the effective wall thickness for subsequent
+    visibility checks.
+
+    All computation is performed in Numba-compatible kernels without relying
+    on OpenCV operations.
+
+    Parameters:
+    - mask_255 (np.ndarray): <br>
+        2D uint8 wall mask, typically with values {0, 255}.
+    - wall_thickness (int): <br>
+        If > 1, applies a single binary dilation step with a square kernel of size
+        (wall_thickness x wall_thickness).
+
+    Returns:
+    - np.ndarray: <br>
+        A uint8 binary occlusion map with values:
+        - 0 for free space
+        - 1 for occluded (wall) pixels
+    """
+    occ = apply_mask_to_binary(mask_255)
+    if wall_thickness > 1:
+        occ = dilate_binary_square(occ, wall_thickness)
     return occ
 
 
@@ -625,81 +986,171 @@ def precompute_image_sources(
 # >>> ISM path building (no shapely)
 # ----------------------------------
 
+@numba.njit(cache=True, fastmath=True)
 def build_path_for_sequence(
-    source_xy: Tuple[float, float],
-    receiver_xy: Tuple[float, float],
-    seq: Tuple[int, ...],
-    S_img: Tuple[float, float],
-    walls: List[Segment],
-) -> Optional[List[Tuple[float, float]]]:
+        sx, sy,
+        rx, ry,
+        seq, seq_len,
+        s_imgx, s_imgy,
+        walls4,
+        path_out
+    ):
     """
-    Build a valid specular reflection path for a given wall sequence.
+    Construct a valid specular reflection path for a given wall sequence.
 
-    Constructs the reflection points for a candidate wall sequence using a
-    virtual-receiver backtracking approach. The method intersects the line from
-    the image source S_img to the current virtual receiver with the active wall,
-    accumulating reflection points in reverse order.
+    Builds the geometric reflection path between a real source position and
+    a receiver position using a precomputed image source and a sequence of
+    wall indices describing the reflection order.
+
+    The algorithm works backwards from the receiver by repeatedly:
+    1. Intersecting the line from the image source to the current virtual
+    receiver with the corresponding wall segment.
+    2. Reflecting the virtual receiver across that wall line.
+
+    This produces the reflection points in reverse order, which are then
+    reversed in-place to form the final path:
+
+        [source, r1, r2, ..., receiver]
+
+    The function is designed for Numba and uses preallocated memory
+    (`path_out`) instead of dynamic Python lists.
 
     Parameters:
-    - source_xy (Tuple[float, float]): <br>
-        Real source position in pixel coordinates (x, y).
-    - receiver_xy (Tuple[float, float]): <br>
-        Receiver position in pixel coordinates (x, y).
-    - seq (Tuple[int, ...]): <br>
-        Wall index sequence describing the reflection order.
-    - S_img (Tuple[float, float]): <br>
-        Precomputed image source position for `seq`.
-    - walls (List[Segment]): <br>
-        Wall segments.
+    - sx (float): <br>
+        x-coordinate of the real source position.
+    - sy (float): <br>
+        y-coordinate of the real source position.
+    - rx (float): <br>
+        x-coordinate of the receiver position.
+    - ry (float): <br>
+        y-coordinate of the receiver position.
+    - seq (np.ndarray): <br>
+        1D int array of wall indices describing the reflection order.
+    - seq_len (int): <br>
+        Length of the wall index sequence.
+    - s_imgx (float): <br>
+        x-coordinate of the precomputed image source for this sequence.
+    - s_imgy (float): <br>
+        y-coordinate of the precomputed image source for this sequence.
+    - walls4 (np.ndarray): <br>
+        Array of shape (N,4) containing wall segments as
+        [ax, ay, bx, by].
+    - path_out (np.ndarray): <br>
+        Preallocated float array of shape (>= seq_len+2, 2) used to store
+        the resulting path points.
 
     Returns:
-    - Optional[List[Tuple[float, float]]]: <br>
-        If valid, returns the full path as: <br>
-        [source_xy, r1, r2, ..., receiver_xy]. <br>
-        Returns None if any required intersection fails.
+    - Tuple[int, bool]: <br>
+        (path_length, ok) where `path_length` is the number of valid points
+        written into `path_out`, and `ok` indicates whether a valid
+        reflection path could be constructed.
     """
-    if len(seq) == 0:
-        return [source_xy, receiver_xy]
+    # seq_len == 0 => direct path
+    if seq_len == 0:
+        path_out[0, 0] = sx
+        path_out[0, 1] = sy
+        path_out[1, 0] = rx
+        path_out[1, 1] = ry
+        return 2, True
 
-    refl_points_rev: List[Tuple[float, float]] = []
-    R_virtual = receiver_xy
+    # We'll compute reflection points in reverse order into path_out[1:1+seq_len]
+    # and then reverse them in-place.
+    rvirt_x = rx
+    rvirt_y = ry
 
-    # process last reflection first
-    for wi in reversed(seq):
-        w = walls[wi]
+    # compute reflection points in reverse order
+    for k in range(seq_len - 1, -1, -1):
+        wi = seq[k]
+        ax = walls4[wi, 0]
+        ay = walls4[wi, 1]
+        bx = walls4[wi, 2]
+        by = walls4[wi, 3]
+
         # intersect segment (S_img -> R_virtual) with wall segment
-        hit = _seg_seg_intersection(S_img, R_virtual, w.A, w.B)
-        if hit is None:
-            return None
-        refl_points_rev.append(hit)
-        # update virtual receiver by reflecting across this wall line
-        R_virtual = reflect_point_across_infinite_line(R_virtual, w.A, w.B)
+        ix, iy, ok = seg_seg_intersection_xy(
+            s_imgx, s_imgy, rvirt_x, rvirt_y,
+            ax, ay, bx, by
+        )
+        if not ok:
+            return 0, False
 
-    refl_points = list(reversed(refl_points_rev))
-    return [source_xy] + refl_points + [receiver_xy]
+        # store in reverse order (later we reverse)
+        path_out[1 + (seq_len - 1 - k), 0] = ix
+        path_out[1 + (seq_len - 1 - k), 1] = iy
+
+        # update virtual receiver by reflecting across wall line
+        rvirt_x, rvirt_y = reflect_point_across_infinite_line_numba(
+            rvirt_x, rvirt_y, ax, ay, bx, by
+        )
+
+    # reverse the reflection points to get forward order
+    i = 1
+    j = seq_len
+    while i < j:
+        tmpx = path_out[i, 0]
+        tmpy = path_out[i, 1]
+        path_out[i, 0] = path_out[j, 0]
+        path_out[i, 1] = path_out[j, 1]
+        path_out[j, 0] = tmpx
+        path_out[j, 1] = tmpy
+        i += 1
+        j -= 1
+
+    # write endpoints
+    path_out[0, 0] = sx
+    path_out[0, 1] = sy
+    path_out[seq_len + 1, 0] = rx
+    path_out[seq_len + 1, 1] = ry
+
+    return seq_len + 2, True
 
 
 
+@numba.njit(cache=True, fastmath=True)
 def check_path_visibility_raster(points_xy: List[Tuple[float, float]], occ: np.ndarray, ignore_ends: int = 1) -> bool:
     """
-    Check visibility for all segments of a path using a raster occlusion map.
+    Check visibility of a multi-segment path using a raster occlusion map.
 
-    Runs `is_visible_raster` on every consecutive point pair in the path.
+    Iterates over consecutive point pairs in a path and verifies that each
+    segment is visible using a raster-based line-of-sight test
+    (`is_visible_raster`). If any segment is occluded, the entire path is
+    considered invalid.
+
+    This function is intended to be used with paths produced by
+    `build_path_for_sequence`, where the path is represented as an ordered
+    list of 2D points.
 
     Parameters:
     - points_xy (List[Tuple[float, float]]): <br>
-        Path points [p0, p1, ..., pn].
+        Ordered list of path points in pixel coordinates
+        [p0, p1, ..., pn].
     - occ (np.ndarray): <br>
-        Occlusion map where nonzero values indicate blocked pixels.
+        Binary occlusion map where nonzero values indicate blocked pixels.
+        Accessed via `occ[y, x]`.
     - ignore_ends (int): <br>
-        Number of pixels to ignore at the ends of each segment.
+        Number of pixels to ignore at both ends of each segment during
+        the visibility check, allowing rays to touch wall endpoints.
 
     Returns:
     - bool: <br>
-        True if every segment is visible, otherwise False.
+        True if all path segments are visible, otherwise False.
     """
-    for a, b in zip(points_xy[:-1], points_xy[1:]):
-        if not is_visible_raster(a, b, occ, ignore_ends=ignore_ends):
+    n = len(points_xy)
+
+    # early stop = not enough points
+    if n <= 1:
+        return True
+    
+    # go through every point +
+    # check if the point and the next point
+    # are visible or if there is a wall between
+    for i in range(n-1):
+        p1x = points_xy[i][0]
+        p1y = points_xy[i][1]
+        p2x = points_xy[i+1][0]
+        p2y = points_xy[i+1][1]
+
+        if not is_visible_raster(p1x, p1y, p2x, p2y, occ, ignore_ends):
             return False
     return True
 
@@ -723,7 +1174,7 @@ def compute_reflection_map(
     ignore_ends: int = 1,
     iterative_tracking=False,
     iterative_steps=None,
-    parallelization: int = 0
+    parallelization: int = -1
 ):
     """
     Compute an ISM-based propagation map using fast raster visibility checks.
@@ -768,30 +1219,52 @@ def compute_reflection_map(
         (count_map, None) <br>
         The map is a float32 array of shape (H, W).
     """
+    # input handling
     if img.ndim == 3:
-        # if it's RGB, convert to grayscale for wall picking if you do wall_values=None usage
-        # but if you use wall_values with labels, keep it as is. We'll handle wall_values first.
-        pass
+        # if its RGB, convert to grayscale
+        img = img[..., 0]
 
     H, W = img.shape[:2]
-    S = (source_rel[0] * W, source_rel[1] * H)
+    sx = source_rel[0] * W
+    sy = source_rel[1] * H
 
+    # calc walls + occlusion map
     wall_mask_255 = build_wall_mask(img, wall_values=wall_values)
     walls = get_wall_segments_from_mask(wall_mask_255, thickness=wall_thickness, approx_epsilon=approx_epsilon)
     occ = build_occlusion_from_wallmask(wall_mask_255, wall_thickness=wall_thickness)
 
+    # transform walls into float32 -> n_walls, 4
+    walls4 = segments_to_walls4(walls)
+
     # precompute sequences + image sources once
-    pre = precompute_image_sources(
-        source_xy=S,
+    # in python not numba
+    pre_py = precompute_image_sources(
+        source_xy=(sx, sy),
         walls=walls,
         max_order=max_order,
         forbid_immediate_repeat=forbid_immediate_repeat,
         max_candidates=max_candidates,
     )
 
-    # receiver grid
-    receivers = [(x + 0.5, y + 0.5) for y in range(0, H, step_px) for x in range(0, W, step_px)]
+    # transform seq tuple to np.int32 (for numba)
+    pre = []
+    for seq_tuple, S_img in pre_py:
+        seq_arr = np.asarray(seq_tuple, dtype=np.int32)
+        pre.append((seq_arr, int(seq_arr.shape[0]), float(S_img[0]), float(S_img[1])))
 
+    # get receiver -> in numba style -> as numpy array
+    rx_list = []
+    ry_list = []
+    for y in range(0, H, step_px):
+        for x in range(0, W, step_px):
+            rx_list.append(x + 0.5)
+            ry_list.append(y + 0.5)
+    # get receiver grid in numba style
+    receivers = np.empty((len(rx_list), 2), dtype=np.float32)
+    receivers[:, 0] = np.asarray(rx_list, dtype=np.float32)
+    receivers[:, 1] = np.asarray(ry_list, dtype=np.float32)
+
+    # setup for iterative results
     # output (set iterative)
     output_map = np.zeros((H, W), dtype=np.float32)
     snapshots = []  # list of np.ndarray
@@ -800,41 +1273,58 @@ def compute_reflection_map(
     if iterative_steps is None:
         iterative_steps = -1
 
-    if not iterative_tracking or (iterative_tracking and iterative_steps == 1):
+    if (not iterative_tracking) or (iterative_tracking and iterative_steps == 1):
         snapshot_every_x_steps = len(pre)
     elif iterative_tracking and iterative_steps == -1:
         snapshot_every_x_steps = 1
     else:
-        snapshot_every_x_steps = int( len(pre) // iterative_steps )
+        snapshot_every_x_steps = max(1, int(len(pre) // iterative_steps))
 
-    def eval_receiver(R, pre):
+    # worker setup
+    def eval_receiver(R, pre_chunk):
+        rx = float(R[0])
+        ry = float(R[1])
+
         val = 0.0
-        for (seq, S_img) in pre:
-            if ignore_zero_order and len(seq) == 0:
+
+        # path_out max len = max_order + 2 (oder seq_len + 2)
+        # because seq_len is variable, we allocate once with max_order+2
+        path_out = np.empty((max_order + 2, 2), dtype=np.float32)
+
+        for (seq_arr, seq_len, s_imgx, s_imgy) in pre_chunk:
+            if ignore_zero_order and seq_len == 0:
                 continue
 
-            pts = build_path_for_sequence(S, R, seq, S_img, walls)
-            if pts is None:
+            path_len, ok = build_path_for_sequence(
+                sx, sy,
+                rx, ry,
+                seq_arr, seq_len,
+                s_imgx, s_imgy,
+                walls4,
+                path_out
+            )
+            if not ok:
                 continue
-            if not check_path_visibility_raster(pts, occ, ignore_ends=ignore_ends):
+
+            # Occlusion check (Numba), warning: slice creates view -> ok here
+            if not check_path_visibility_raster(path_out[:path_len], occ, ignore_ends):
                 continue
 
             val += 1.0
 
-        return (R[0], R[1], val)
+        return rx, ry, val
 
-    # compute -> optional iterativly
+    # main loop -> start worker/compuation
+    # compute -> optionally iterativly
     for start_idx in range(0, len(pre), snapshot_every_x_steps):
-        pre_chunk = pre[start_idx:start_idx+snapshot_every_x_steps]
+        pre_chunk = pre[start_idx:start_idx + snapshot_every_x_steps]
 
         if parallelization and parallelization != 0:
-            if Parallel is None:
-                raise RuntimeError("joblib not available but parallelization requested.")
-            results = Parallel(n_jobs=parallelization, backend="loky", prefer="processes", batch_size=16)(
-                delayed(eval_receiver)(R, pre_chunk) for R in receivers
+            results = Parallel(n_jobs=parallelization, prefer="threads", batch_size=256)(
+                delayed(eval_receiver)(cur_receiver, pre_chunk) for cur_receiver in receivers
             )
         else:
-            results = [eval_receiver(R, pre_chunk) for R in receivers]
+            results = [eval_receiver(cur_receiver, pre_chunk) for cur_receiver in receivers]
 
         # summarize current chunk to final output map
 
@@ -844,7 +1334,7 @@ def compute_reflection_map(
             if 0 <= ix < W and 0 <= iy < H:
                 output_map[iy, ix] += float(v)
 
-        snapshots += [output_map.copy()]
+        snapshots.append(output_map.copy())
 
     # return output
     if not iterative_tracking:  # len(snapshots) <= 1

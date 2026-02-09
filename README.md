@@ -14,6 +14,8 @@ Contents:
 
 [> Documentation <](https://M-106.github.io/Image-Physics-Simulation/img_phy_sim.html)
 
+[> Optimization Repo <](https://github.com/M-106/Performance-Analysis-and-Optimization-of-img-phy-sim)
+
 <img src="./img_phy_sim/raytracing_example.png" width="46%"></img>
 <img src="./img_phy_sim/ism_example.png" width="46%"></img>
 

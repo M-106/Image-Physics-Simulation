@@ -1269,9 +1269,9 @@ def trace_beams(rel_position,
                 use_dda=True,
                 iterative_tracking=False,
                 iterative_steps=None,
-                parallelization=0,
+                parallelization=-1,
                 parallelization_method="processes",  # "threads", "processes"
-                use_numba_compilation=False,
+                use_numba_compilation=True,
                 ignore_iterative_optimization=True):
     """
     Trace multiple rays (beams) from a single position through an image with walls and reflections.
@@ -1319,6 +1319,10 @@ def trace_beams(rel_position,
         Nested list of traced beams and their reflection segments. 
         Format: rays[beam][segment][point] = (x, y)
     """ 
+    if use_numba_compilation and iterative_tracking:
+        print("[WARNING] Iterative Return deactivates the use of numba.")
+        use_numba_compilation = False
+
     if isinstance(img_src, np.ndarray):
         img = img_src
     else:
@@ -1684,9 +1688,9 @@ def trace_and_draw_rays(rel_position,
                         use_dda=True,
                         iterative_tracking=False,
                         iterative_steps=None,
-                        parallelization=0,
+                        parallelization=-1,
                         parallelization_method="processes",  # "threads", "processes"
-                        use_numba_compilation=False,
+                        use_numba_compilation=True,
                         ignore_iterative_optimization=True,
                         detail_draw=True,
                         output_format="single_image", # single_image, multiple_images, channels 
