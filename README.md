@@ -170,32 +170,17 @@ class PhysGenDataset(Dataset):
 
 - Img-Phy-Sim (ips)
     - `ray_tracing`
-        - `get_wall_map`: extracting a wall-map from an image
-        - `trace-beam`: calculates one ray
         - `trace_beams`: load an image, extract the wall-map and trace multiple beams
         - `draw_rays`: draw/export the rays as/inside an image
+        - `trace_and_draw_rays`: combines `trace_beams` and `draw_rays` in order to get directly an image output
         - `print_rays_info`: get some interesting informations about your rays
         - `save`: save your rays as txt file
         - `open`: load your saved rays txt file
         - `get_linear_degree_range`: get a range for your beam-directions -> example beams between 0-360 with stepsize 10
         - `merge_rays`: merge 2 rays to one 'object'
     - `ism`
-        - `reflect_point_across_infinite_line`: Reflects a point across the infinite line defined by two endpoints
-        - `paths_to_rays`: Converts polyline paths into your ray/segment representation, optionally normalizing points to ([0,1]) image space
-        - `reflection_map_to_img`: Normalizes a float reflection/energy map to a uint8 visualization image in ([0,255])
-        - `Segment`: Immutable dataclass representing a 2D line segment with convenience access to its endpoints
-        - `_seg_seg_intersection`: Computes the unique intersection point of two finite 2D segments, returning None for parallel/colinear/no-hit cases
-        - `_bresenham_points`: Generates all integer grid points along a line between two pixels using Bresenham’s algorithm
-        - `is_visible_raster`: Tests line-of-sight between two points by checking whether Bresenham-sampled pixels hit an occlusion raster
-        - `build_wall_mask`: Builds a binary 0/255 wall mask from an input image using explicit wall labels or mask-like heuristics
-        - `get_wall_segments_from_mask`: Extracts wall boundary contours from a binary mask and converts them into geometric Segment primitives
-        - `build_occlusion_from_wallmask`: Produces a binary occlusion raster (optionally dilated) used for fast visibility checks
-        - `enumerate_wall_sequences_indices`: Enumerates all reflection sequences (as wall-index tuples) up to a maximum reflection order
-        - `precompute_image_sources`: Computes image-source positions for each reflection sequence by iteratively mirroring the source across the corresponding walls
-        - `build_path_for_sequence`: Reconstructs the specular reflection polyline for a given wall sequence by backtracking virtual receivers and segment intersections
-        - `path_energy`: Computes a simple physically-inspired path contribution based on total path length and per-reflection losses
-        - `check_path_visibility_raster`: Verifies that every segment of a candidate path is unobstructed using raster line-of-sight tests
         - `compute_reflection_map`: Evaluates all valid ISM paths from one source to a receiver grid and accumulates path counts
+        - `reflection_map_to_img`: Normalizes the reflection map from 0.0-1.0 to 0.0-255.0 
     - `img`
         - `open`: load an image via Open-CV
         - `save`: save an image
@@ -649,7 +634,6 @@ reflection_map = ips.ism.compute_reflection_map(
     wall_thickness=1,
     max_order=1,
     step_px=1,
-    parallelization=-1
 )
 
 ips.img.imshow(ips.ism.reflection_map_to_img(reflection_map), size=5)
@@ -698,8 +682,7 @@ reflection_map_per_time = ips.ism.compute_reflection_map(
     max_order=1,
     step_px=1,
     iterative_tracking=True,
-    iterative_steps=6,    # IMPORTANT
-    parallelization=-1    # IMPORTANT
+    iterative_steps=6, 
 )
 
 ips.img.imshow(ips.ism.reflection_map_to_img(reflection_map_per_time[0]), size=5)

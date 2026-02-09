@@ -41,9 +41,6 @@ plot_image_with_values(img, block_size=16, cmap="gray")
 line_values = show_image_with_line_and_profile([img], axis="row", index=50)
 ```
 
-Author:<br>
-Tobia Ippolito
-
 Functions:
 - get_bit_depth(img)                   - Return bit depth of image dtype.
 - get_width_height(img, channels_before=0) - Return (width, height) of an image.

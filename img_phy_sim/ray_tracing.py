@@ -42,9 +42,6 @@ output = ips.ray_tracing.draw_rays(rays, img_shape=img.shape, ray_value=255, ray
 ips.img.imshow(output, size=5)
 ```
 
-Author:<br>
-Tobia Ippolito, 2025
-
 Functions:
 - print_rays_info(...)  - Pritn informations about created rays.
 - save(...)  - Save rays into a file.

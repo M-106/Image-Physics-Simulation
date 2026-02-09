@@ -47,9 +47,6 @@ precision_mean /= counter
 print(f"Baseline Accuracy: F1={f1_mean:.2f}, Recall={recall_mean:.02f}, Precision={precision_mean:.02f}")
 ```
 
-Author:<br>
-Tobia Ippolito
-
 Functions:
 - calc_metrices(...) - Calculate F1, Recall and Precision between rays (or optinal an image) and an image.
 """

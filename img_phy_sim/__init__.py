@@ -88,8 +88,25 @@ output = ips.ray_tracing.draw_rays(rays, img_shape=img.shape, ray_value=255, ray
 ips.img.imshow(output, size=5)
 ```
 
+Or use ISM:
+```python
+# returns an 0.0-1.0 image
+reflection_map = ips.ism.compute_reflection_map(
+    source_rel=(0.5, 0.5),
+    img=ips.img.open(input_src),
+    wall_values=[0],   
+    wall_thickness=1,
+    max_order=1,
+    step_px=1,
+)
+
+img_in_255_range = ips.ism.reflection_map_to_img(reflection_map)
+
+ips.img.imshow(img_in_255_range, size=5)
+```
+
 Author:<br>
-Tobia Ippolito, 2025
+Tobia Ippolito, 2026
 """
 
 from . import img

@@ -38,7 +38,7 @@ setup(
     #     annotate=True,
     # ),
     name='img-phy-sim',
-    version='1.3',
+    version='1.4',
     packages=find_packages(),  # ['img_phy_sim'],
     install_requires=[
         # List any dependencies here, e.g. 'numpy', 'requests'

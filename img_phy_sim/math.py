@@ -41,9 +41,6 @@ p_norm = ips.math.normalize_point((128, 64), width=256, height=128)
 p_pixel = ips.math.denormalize_point(p_norm, width=256, height=128)
 ```
 
-Author:<br>
-Tobia Ippolito
-
 Functions:
 - get_linear_degree_range(...) - Generate evenly spaced degrees within a range.
 - degree_to_vector(...)        - Convert a degree angle to a 2D unit vector.
