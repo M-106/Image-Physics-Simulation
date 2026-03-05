@@ -1403,7 +1403,7 @@ def trace_beams(rel_position,
                 rays.append(cur_ray_result)
 
     if iterative_tracking and iterative_steps is not None:
-        rays.reduce_rays_iteratively(steps=iterative_steps)
+        rays.reduce_to_x_steps(x_steps=iterative_steps)
 
     return rays
 
